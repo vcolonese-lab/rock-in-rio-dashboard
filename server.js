@@ -493,9 +493,27 @@ function getDashboardHTML(username) {
     border-radius:50%;animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
 
+  /* ── RANKING ── */
+  .ranking-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px 40px}
+  .rank-table{width:100%;border-collapse:collapse}
+  .rank-table tr{border-bottom:1px solid var(--border)}
+  .rank-table tr:last-child{border-bottom:none}
+  .rank-table tr:hover td{background:var(--surface2)}
+  .rank-pos{padding:8px 6px;font-size:13px;width:36px;text-align:center;font-weight:800;color:var(--muted)}
+  .rank-pos.top{color:var(--gold)}
+  .rank-name{padding:8px 8px;font-size:13px;font-weight:600;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+  .rank-bar-td{padding:6px 8px;width:100%}
+  .rank-bar-wrap{background:var(--surface2);border-radius:4px;height:8px;overflow:hidden}
+  .rank-bar-fill{height:100%;background:var(--accent);border-radius:4px}
+  .rank-bar-time{background:var(--green)}
+  .rank-bar-blue{background:var(--blue)}
+  .rank-val{padding:8px 6px;font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;text-align:right;min-width:44px}
+  .rank-sub{font-size:10px;color:var(--muted)}
+
   @media(max-width:768px){
-    header,.kpi-grid,.main-grid,.table-section,.section-heading{padding-left:16px;padding-right:16px}
+    header,.kpi-grid,.main-grid,.table-section,.section-heading,.ranking-grid{padding-left:16px;padding-right:16px}
     .main-grid{grid-template-columns:1fr} .chart-card.full{grid-column:1}
+    .ranking-grid{grid-template-columns:1fr}
     #status-bar{padding-left:16px;padding-right:16px}
   }
 </style>
@@ -690,6 +708,21 @@ function renderAll() {
         <div class="kpi-sub">pedidos cancelados</div></div>
     </div>
 
+    <!-- RANKING -->
+    <div class="section-heading"><h2>Ranking de Ocupação</h2><div class="section-divider"></div></div>
+    <div class="ranking-grid">
+      <div class="chart-card">
+        <div class="chart-title">Locais</div>
+        <div class="chart-subtitle">Por Ingressos Vendidos</div>
+        <div id="ranking-locais"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Horários de Saída</div>
+        <div class="chart-subtitle">Por Volume de Ingressos</div>
+        <div id="ranking-horarios"></div>
+      </div>
+    </div>
+
     <!-- CHARTS ROW 1 -->
     <div class="section-heading"><h2>Distribuição de Vendas</h2><div class="section-divider"></div></div>
     <div class="main-grid">
@@ -740,6 +773,7 @@ function renderAll() {
 
   renderCharts(events, byDate, byTime);
   renderHeatmap(events, byDate, heatmap);
+  renderRanking(events, byTime);
   renderTable(events);
 }
 
@@ -814,6 +848,51 @@ function renderHeatmap(events, byDate, heatmap) {
   });
   html += '</tbody></table>';
   document.getElementById('heatmap-container').innerHTML = html;
+}
+
+function renderRanking(events, byTime) {
+  // ── Ranking por Local ──────────────────────────────────────
+  const sortedEvents = [...events].filter(e => e.sold > 0).sort((a, b) => b.sold - a.sold);
+  const maxSold = sortedEvents[0]?.sold || 1;
+  const totalSoldAll = sortedEvents.reduce((s, e) => s + e.sold, 0) || 1;
+
+  const medals = ['🥇','🥈','🥉'];
+  let htmlLocais = '<table class="rank-table">';
+  sortedEvents.forEach((e, i) => {
+    const pct = (e.sold / maxSold * 100).toFixed(1);
+    const sharePct = (e.sold / totalSoldAll * 100).toFixed(1);
+    const pos = medals[i] || (\`<span style="font-size:11px">#\${i+1}</span>\`);
+    const posClass = i < 3 ? 'rank-pos top' : 'rank-pos';
+    htmlLocais += \`<tr>
+      <td class="\${posClass}">\${pos}</td>
+      <td class="rank-name" title="\${e.name}">\${e.name}</td>
+      <td class="rank-bar-td"><div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:\${pct}%"></div></div></td>
+      <td class="rank-val">\${e.sold}<br><span class="rank-sub">\${sharePct}%</span></td>
+    </tr>\`;
+  });
+  htmlLocais += '</table>';
+  document.getElementById('ranking-locais').innerHTML = htmlLocais;
+
+  // ── Ranking por Horário ────────────────────────────────────
+  const sortedTimes = [...byTime].filter(t => t.tks > 0).sort((a, b) => b.tks - a.tks);
+  const maxTks = sortedTimes[0]?.tks || 1;
+  const totalTksAll = sortedTimes.reduce((s, t) => s + t.tks, 0) || 1;
+
+  let htmlHorarios = '<table class="rank-table">';
+  sortedTimes.forEach((t, i) => {
+    const pct = (t.tks / maxTks * 100).toFixed(1);
+    const sharePct = (t.tks / totalTksAll * 100).toFixed(1);
+    const pos = medals[i] || (\`<span style="font-size:11px">#\${i+1}</span>\`);
+    const posClass = i < 3 ? 'rank-pos top' : 'rank-pos';
+    htmlHorarios += \`<tr>
+      <td class="\${posClass}">\${pos}</td>
+      <td class="rank-name">\${t.time}</td>
+      <td class="rank-bar-td"><div class="rank-bar-wrap"><div class="rank-bar-fill rank-bar-time" style="width:\${pct}%"></div></div></td>
+      <td class="rank-val">\${t.tks}<br><span class="rank-sub">\${sharePct}%</span></td>
+    </tr>\`;
+  });
+  htmlHorarios += '</table>';
+  document.getElementById('ranking-horarios').innerHTML = htmlHorarios;
 }
 
 function renderTable(events) {
