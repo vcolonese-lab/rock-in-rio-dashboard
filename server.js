@@ -22,21 +22,24 @@ const USERS = Object.fromEntries(
 // ─────────────────────────────────────────────
 // TICKETMASTER EVENTS
 // ─────────────────────────────────────────────
-// IDs verificados diretamente na API da Ticketmaster (mapeamento confirmado por calendar scan)
+// 36 eventos Primeira Classe Rock in Rio - verificados via API /api/v2/events (mai/2026)
 const EVENT_IDS = [
   '14136','14137','14138','14139','14140','14141','14142','14143',
   '14144','14145','14146','14147','14148','14149','14150','14152',
-  '14153','14155','14156','14158','14159','14165','14166','14181',
-  '14185','14187'
+  '14153','14155','14156','14157','14158','14159','14160','14161',
+  '14162','14163','14164','14165','14166','14174','14181','14182',
+  '14183','14184','14185','14187'
 ];
 const EVENT_NAMES = [
   'Botafogo Praia Shopping','Shopping Rio Sul','Copacabana','Copacabana - Posto 5',
   'Ipanema','Mix Rio FM - Bossa Nova Mall','RIO Galeão','Rio Design Barra',
-  'Norte Shopping','Nova América','Recreio Shopping','11H00',
-  'Tijuca','Niterói - São Francisco','Plaza Shopping','Lagoa',
-  'Shopping Nova Iguaçú','West Shopping','Petrópolis','Cabo Frio',
-  'Campinas','Campos dos Goytacazes','Macaé','Resende',
-  'São Gonçalo Shopping','Shopping Eldorado - São Paulo'
+  'Norte Shopping','Nova América','Recreio Shopping','Carioca Shopping',
+  'Tijuca','Niterói - São Francisco','Niterói Plaza Shopping','Lagoa',
+  'Shopping Nova Iguaçú','West Shopping','Petrópolis','Búzios',
+  'Cabo Frio','Campinas','Piracicaba','Sorocaba',
+  'Belo Horizonte','Poços de Caldas','Itajubá','Campos dos Goytacazes',
+  'Macaé','Nova Friburgo','Resende','Barra Mansa',
+  'Volta Redonda','Piraí','São Gonçalo Shopping','Shopping Eldorado - São Paulo'
 ];
 
 // ─────────────────────────────────────────────
