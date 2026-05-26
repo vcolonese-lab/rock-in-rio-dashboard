@@ -515,6 +515,15 @@ function getDashboardHTML(username) {
   <span class="status-dot" id="status-dot"></span>
   <span id="status-text">Conectando...</span>
   <span id="token-warning">⚠️ Token expirando em breve — clique no bookmarklet no painel da Ticketmaster</span>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;">
+    <a id="bookmarklet-link"
+       href="javascript:(function(){var u=localStorage.getItem('u');if(!u){alert('Faça login na Ticketmaster primeiro');return;}var t=JSON.parse(u).authToken;fetch('https://rock-in-rio-dashboard-production.up.railway.app/admin/sync-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t,adminKey:'rir-admin-2026'})}).then(r=>r.json()).then(d=>alert(d.message||'OK!')).catch(e=>alert('Erro: '+e));})();"
+       style="background:#1c2e1c;color:#2ec27e;border:1px solid #2ec27e;padding:4px 10px;border-radius:5px;text-decoration:none;font-weight:600;cursor:grab;white-space:nowrap;"
+       title="Arraste este link para sua barra de favoritos do Chrome">
+      🔖 Arraste para Favoritos — Sync Token
+    </a>
+    <span style="color:var(--muted);">← arraste para a barra de favoritos</span>
+  </span>
 </div>
 
 <div id="app"></div>
