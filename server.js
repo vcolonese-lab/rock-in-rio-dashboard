@@ -341,6 +341,20 @@ app.post('/api/refresh', requireAuth, async (req, res) => {
   res.json({ ok: true, message: 'Atualização iniciada...' });
 });
 
+// ── Debug: raw API response for one event ────
+app.get('/api/debug/:eventId', async (req, res) => {
+  const { adminKey } = req.query;
+  if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Forbidden' });
+  if (!state.token) return res.status(400).json({ error: 'Token not set' });
+  try {
+    const raw = await fetchIndicators(req.params.eventId, state.token);
+    const cal = await fetchCalendar(req.params.eventId, state.token);
+    res.json({ indicators: raw, calendar: cal });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Dashboard (main page) ────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.send(getDashboardHTML(req.session.user));
