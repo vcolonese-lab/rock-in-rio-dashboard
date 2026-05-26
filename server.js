@@ -293,7 +293,20 @@ app.post('/logout', (req, res) => {
 });
 
 // ── Admin: sync token from bookmarklet ──────
+// CORS headers helper for sync-token (allows calls from any origin, e.g. Ticketmaster dashboard)
+function corsForSyncToken(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+app.options('/admin/sync-token', (req, res) => {
+  corsForSyncToken(req, res);
+  res.sendStatus(204);
+});
+
 app.post('/admin/sync-token', (req, res) => {
+  corsForSyncToken(req, res);
   const { token, adminKey } = req.body;
   if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Forbidden' });
   if (!token) return res.status(400).json({ error: 'Token required' });
