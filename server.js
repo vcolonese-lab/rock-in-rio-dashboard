@@ -121,34 +121,37 @@ function aggregateData(eventResults, calendarResults) {
     const calRes = calendarResults[i];
 
     // Parse indicators
+    // API response: { indicators: [ { indicator: 'SALES_INDICATORS', value: { status: { APPROVED: { purchases, primaryQuantity, primaryAmount } } } }, ... ] }
     let sold = 0, revenue = 0, purchases = 0, creditCard = 0, pix = 0;
     if (evRes.ok && evRes.value?.indicators) {
       for (const ind of evRes.value.indicators) {
-        if (ind.indicator === 'SALES_INDICATORS' && ind.data) {
-          sold      = ind.data.ticketsSold    || 0;
-          revenue   = ind.data.subtotal       || 0;
-          purchases = ind.data.purchasesCount || 0;
+        if (ind.indicator === 'SALES_INDICATORS' && ind.value?.status?.APPROVED) {
+          const approved = ind.value.status.APPROVED;
+          sold      = approved.primaryQuantity || 0;
+          revenue   = approved.primaryAmount   || 0;
+          purchases = approved.purchases       || 0;
         }
-        if (ind.indicator === 'SALES_BY_PAYMENT_METHODS' && ind.data) {
-          for (const pm of ind.data) {
-            if (/credit|crédito/i.test(pm.name)) creditCard += (pm.ticketsSold || 0);
-            if (/pix/i.test(pm.name))             pix        += (pm.ticketsSold || 0);
-          }
+        if (ind.indicator === 'SALES_BY_PAYMENT_METHODS' && ind.value?.paymentTypes) {
+          const pt = ind.value.paymentTypes;
+          creditCard = pt.CREDIT_CARD?.primaryQuantity || 0;
+          pix        = pt.PIX?.primaryQuantity         || 0;
         }
       }
     }
 
     // Parse calendar (show-level data)
+    // API response: { report: [ { date: '2026-09-04T12:00', tks, subTotal, totalServiceCharge, sector } ] }
     const showCount = { count: 0 };
     heatmap[name] = {};
     if (calRes.ok && calRes.value) {
-      const calData = Array.isArray(calRes.value) ? calRes.value : (calRes.value.data || []);
+      const calData = Array.isArray(calRes.value) ? calRes.value
+                    : (calRes.value.report || calRes.value.data || []);
       for (const show of calData) {
         const date    = (show.date || show.showDate || '').substring(0, 10);
-        const time    = show.time  || show.showTime  || '';
-        const tickets = show.ticketsSold || show.sold || show.quantity || 0;
-        const sub     = show.subtotal    || show.revenue || (tickets * 220);
-        const tax     = show.serviceCharge || show.tax   || (sub * 0.1);
+        const time    = (show.date || show.showTime || show.time || '').substring(11, 16);
+        const tickets = show.tks || show.ticketsSold || show.sold || show.quantity || 0;
+        const sub     = show.subTotal || show.subtotal || show.revenue || (tickets * 220);
+        const tax     = show.totalServiceCharge || show.serviceCharge || show.tax || (sub * 0.1);
         if (!tickets) continue;
 
         rawShows.push({ evId: id, local: name, date, time, tks: tickets, subtotal: sub, taxa: tax });
