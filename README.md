@@ -43,7 +43,7 @@ No Railway, vá em **Variables** e adicione:
 | `SESSION_SECRET` | (string aleatória longa) | Ex: `xK9mP2qR8vL4nT7wY3aB6cF1jG5hD0` |
 
 ### 4. Aguarde o deploy
-Em ~2 minutos o Railway mostrará a URL pública. Ex: `https://rock-in-rio-dashboard.up.railway.app`
+Em ~2 minutos o Railway mostrará a URL pública. **URL atual: `https://rock-in-rio-dashboard-production.up.railway.app`** ✅
 
 ---
 
@@ -57,12 +57,12 @@ O bookmarklet é um favorito especial que, quando clicado no painel da Ticketmas
 2. Edite o favorito e substitua a URL por:
 
 ```javascript
-javascript:(function(){var u=localStorage.getItem('u');if(!u){alert('Faça login na Ticketmaster primeiro');return;}var t=JSON.parse(u).authToken;fetch('https://SEU-APP.up.railway.app/admin/sync-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t,adminKey:'SUA-ADMIN-KEY'})}).then(r=>r.json()).then(d=>alert(d.message||'OK!')).catch(e=>alert('Erro: '+e));})();
+javascript:(function(){var u=localStorage.getItem('u');if(!u){alert('Faça login na Ticketmaster primeiro');return;}var t=JSON.parse(u).authToken;fetch('https://rock-in-rio-dashboard-production.up.railway.app/admin/sync-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t,adminKey:'rir-admin-2026'})}).then(r=>r.json()).then(d=>alert(d.message||'OK!')).catch(e=>alert('Erro: '+e));})();
 ```
 
 3. **Substitua:**
-   - `SEU-APP.up.railway.app` pela URL do Railway
-   - `SUA-ADMIN-KEY` pelo valor da variável `ADMIN_KEY`
+   - `rock-in-rio-dashboard-production.up.railway.app` pela URL do Railway
+   - `rir-admin-2026` pelo valor da variável `ADMIN_KEY`
 
 4. Renomeie o favorito para: **"Sync RiR Dashboard"**
 
