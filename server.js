@@ -22,22 +22,21 @@ const USERS = Object.fromEntries(
 // ─────────────────────────────────────────────
 // TICKETMASTER EVENTS
 // ─────────────────────────────────────────────
+// IDs verificados diretamente na API da Ticketmaster (mapeamento confirmado por calendar scan)
 const EVENT_IDS = [
-  '14142','14146','14148','14150','14152','14154','14156','14158',
-  '14160','14162','14164','14166','14168','14170','14172','14174',
-  '14176','14178','14180','14182','14184','14186','14188','14190',
-  '14192','14194','14196','14198','14200','14202','14204','14206',
-  '14208','14210','14212','14214'
+  '14136','14137','14138','14139','14140','14141','14142','14143',
+  '14144','14145','14146','14147','14148','14149','14150','14152',
+  '14153','14155','14156','14158','14159','14165','14166','14181',
+  '14185','14187'
 ];
 const EVENT_NAMES = [
-  'RIO Galeão','Recreio Shopping','Rio Design Barra','Mix Rio FM - Bossa Nova Mall',
-  'Lagoa','Niterói Plaza Shopping','Niterói - São Francisco','Tijuca',
-  'Carioca Shopping','Nova América','Norte Shopping','Shopping Nova Iguaçú',
-  'Ipanema','Copacabana - Posto 5','Copacabana','Shopping Rio Sul',
-  'Botafogo Praia Shopping','São Gonçalo Shopping','Petrópolis','West Shopping',
-  'Piraí','Volta Redonda','Barra Mansa','Resende','Cabo Frio','Nova Friburgo',
-  'Macaé','Búzios','Campos dos Goytacazes','Itajubá','Shopping Eldorado - SP',
-  'Belo Horizonte','Campinas','Poços de Caldas','Sorocaba','Piracicaba'
+  'Botafogo Praia Shopping','Shopping Rio Sul','Copacabana','Copacabana - Posto 5',
+  'Ipanema','Mix Rio FM - Bossa Nova Mall','RIO Galeão','Rio Design Barra',
+  'Norte Shopping','Nova América','Recreio Shopping','11H00',
+  'Tijuca','Niterói - São Francisco','Plaza Shopping','Lagoa',
+  'Shopping Nova Iguaçú','West Shopping','Petrópolis','Cabo Frio',
+  'Campinas','Campos dos Goytacazes','Macaé','Resende',
+  'São Gonçalo Shopping','Shopping Eldorado - São Paulo'
 ];
 
 // ─────────────────────────────────────────────
@@ -121,15 +120,33 @@ function aggregateData(eventResults, calendarResults) {
     const calRes = calendarResults[i];
 
     // Parse indicators
-    // API response: { indicators: [ { indicator: 'SALES_INDICATORS', value: { status: { APPROVED: { purchases, primaryQuantity, primaryAmount } } } }, ... ] }
+    // API statuses: APPROVED (confirmed sales), RESERVED (held/pending), PENDING_VERIFICATION, CANCELLED (if any)
     let sold = 0, revenue = 0, purchases = 0, creditCard = 0, pix = 0;
+    let reserved = 0, reservedRevenue = 0, cancelled = 0, cancelledRevenue = 0;
     if (evRes.ok && evRes.value?.indicators) {
       for (const ind of evRes.value.indicators) {
-        if (ind.indicator === 'SALES_INDICATORS' && ind.value?.status?.APPROVED) {
-          const approved = ind.value.status.APPROVED;
-          sold      = approved.primaryQuantity || 0;
-          revenue   = approved.primaryAmount   || 0;
-          purchases = approved.purchases       || 0;
+        if (ind.indicator === 'SALES_INDICATORS' && ind.value?.status) {
+          const s = ind.value.status;
+          // APPROVED: confirmed, paid orders
+          if (s.APPROVED) {
+            sold      = s.APPROVED.primaryQuantity || 0;
+            revenue   = s.APPROVED.primaryAmount   || 0;
+            purchases = s.APPROVED.purchases       || 0;
+          }
+          // RESERVED: held/reserved orders (may be completed or cancelled)
+          if (s.RESERVED) {
+            reserved        = s.RESERVED.primaryQuantity || 0;
+            reservedRevenue = s.RESERVED.primaryAmount   || 0;
+          }
+          // CANCELLED or REFUNDED: cancelled orders
+          if (s.CANCELLED) {
+            cancelled        = s.CANCELLED.primaryQuantity || 0;
+            cancelledRevenue = s.CANCELLED.primaryAmount   || 0;
+          }
+          if (s.REFUNDED) {
+            cancelled        += s.REFUNDED.primaryQuantity || 0;
+            cancelledRevenue += s.REFUNDED.primaryAmount   || 0;
+          }
         }
         if (ind.indicator === 'SALES_BY_PAYMENT_METHODS' && ind.value?.paymentTypes) {
           const pt = ind.value.paymentTypes;
@@ -166,7 +183,8 @@ function aggregateData(eventResults, calendarResults) {
       }
     }
 
-    events.push({ id, name, sold, revenue, purchases, creditCard, pix, shows: showCount.count });
+    events.push({ id, name, sold, revenue, purchases, creditCard, pix, shows: showCount.count,
+                  reserved, reservedRevenue, cancelled, cancelledRevenue });
   });
 
   // Build sorted by-time array
@@ -179,8 +197,12 @@ function aggregateData(eventResults, calendarResults) {
   }));
 
   return { events, rawShows, byDate: byDateArr, byTime: byTimeArr, heatmap,
-           totalSold: events.reduce((s, e) => s + e.sold, 0),
-           totalRevenue: events.reduce((s, e) => s + e.revenue, 0) };
+           totalSold:            events.reduce((s, e) => s + e.sold, 0),
+           totalRevenue:         events.reduce((s, e) => s + e.revenue, 0),
+           totalReserved:        events.reduce((s, e) => s + e.reserved, 0),
+           totalReservedRevenue: events.reduce((s, e) => s + e.reservedRevenue, 0),
+           totalCancelled:       events.reduce((s, e) => s + e.cancelled, 0),
+           totalCancelledRevenue:events.reduce((s, e) => s + e.cancelledRevenue, 0) };
 }
 
 // ─────────────────────────────────────────────
@@ -487,7 +509,7 @@ function getDashboardHTML(username) {
     <div class="logo-badge">Rock in Rio 2026</div>
     <div>
       <h1>Primeira Classe — Dashboard de Vendas</h1>
-      <p>36 locais · Setembro 2026 · Logado como <strong>${username}</strong></p>
+      <p>${EVENT_IDS.length} locais · Setembro 2026 · Logado como <strong>${username}</strong></p>
     </div>
   </div>
   <div class="header-right">
@@ -625,12 +647,15 @@ async function doRefresh() {
 // ═══════════════════════════════════════════════════════════
 function renderAll() {
   if (!_data) return;
-  const { events, byDate, byTime, heatmap, totalSold, totalRevenue } = _data;
+  const { events, byDate, byTime, heatmap, totalSold, totalRevenue,
+          totalReserved, totalReservedRevenue, totalCancelled, totalCancelledRevenue } = _data;
 
-  const totalTax = _rawShows.reduce((s, r) => s + (r.taxa || 0), 0);
-  const totalTickets = events.reduce((s, e) => s + e.sold, 0);
-  const totalEvents  = events.filter(e => e.sold > 0).length;
+  const totalTax       = _rawShows.reduce((s, r) => s + (r.taxa || 0), 0);
+  const totalTickets   = events.reduce((s, e) => s + e.sold, 0);
+  const totalEvents    = events.filter(e => e.sold > 0).length;
   const totalPurchases = events.reduce((s, e) => s + e.purchases, 0);
+  const totalRes       = events.reduce((s, e) => s + (e.reserved || 0), 0);
+  const totalCan       = events.reduce((s, e) => s + (e.cancelled || 0), 0);
 
   document.getElementById('app').innerHTML = \`
     <!-- KPIs -->
@@ -652,8 +677,14 @@ function renderAll() {
         <div class="kpi-value">\${fmtR(totalPurchases ? totalRevenue / totalPurchases : 0)}</div>
         <div class="kpi-sub">\${totalPurchases ? (totalTickets/totalPurchases).toFixed(1) : 0} ingr./pedido</div></div>
       <div class="kpi-card purple"><div class="kpi-label">Locais</div>
-        <div class="kpi-value">36</div>
+        <div class="kpi-value">${EVENT_IDS.length}</div>
         <div class="kpi-sub">\${totalEvents} com vendas</div></div>
+      <div class="kpi-card" style="border-top:3px solid #f4a261"><div class="kpi-label">Reservados</div>
+        <div class="kpi-value" style="color:#f4a261">\${fmt(totalRes)}</div>
+        <div class="kpi-sub">pedidos em aberto</div></div>
+      <div class="kpi-card" style="border-top:3px solid #e63946"><div class="kpi-label">Cancelados</div>
+        <div class="kpi-value" style="color:#e63946">\${fmt(totalCan)}</div>
+        <div class="kpi-sub">pedidos cancelados</div></div>
     </div>
 
     <!-- CHARTS ROW 1 -->
@@ -695,6 +726,8 @@ function renderAll() {
             <th onclick="sortTable('sold')">Ingressos ↕</th>
             <th onclick="sortTable('revenue')">Subtotal ↕</th>
             <th onclick="sortTable('purchases')">Compras ↕</th>
+            <th onclick="sortTable('reserved')" style="color:#f4a261">Reservados ↕</th>
+            <th onclick="sortTable('cancelled')" style="color:#e63946">Cancelados ↕</th>
             <th onclick="sortTable('shows')">Shows ↕</th>
           </tr></thead>
           <tbody id="evTbody"></tbody>
@@ -793,6 +826,8 @@ function renderTable(events) {
       <td><span class="badge-sold">\${e.sold}</span></td>
       <td>\${fmtR(e.revenue)}</td>
       <td>\${e.purchases}</td>
+      <td style="color:\${e.reserved > 0 ? '#f4a261' : 'inherit'}">\${e.reserved || 0}</td>
+      <td style="color:\${e.cancelled > 0 ? '#e63946' : 'inherit'}">\${e.cancelled || 0}</td>
       <td>\${e.shows}</td>
     </tr>\`).join('');
 }
