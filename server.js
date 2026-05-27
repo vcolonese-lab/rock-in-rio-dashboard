@@ -493,6 +493,25 @@ function getDashboardHTML(username) {
     border-radius:50%;animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
 
+  /* ── MODAL HISTÓRICO ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+  .modal-overlay.hidden{display:none}
+  .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:900px;padding:32px;position:relative}
+  .modal-close{position:absolute;top:16px;right:16px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;width:32px;height:32px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .modal-close:hover{background:var(--border)}
+  .hist-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}
+  .hist-table th{padding:9px 12px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);text-align:right;border-bottom:2px solid var(--border);white-space:nowrap}
+  .hist-table th:first-child{text-align:center}
+  .hist-table td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--border)}
+  .hist-table td:first-child{text-align:center;font-weight:800;font-size:15px}
+  .hist-table tr:hover td{background:var(--surface2)}
+  .hist-table tr.current-year td{background:#1a1f10;border-left:3px solid var(--green)}
+  .hist-table tr.current-year td:first-child{color:var(--green)}
+  .hist-section-header{background:var(--surface2);font-weight:700!important;color:var(--text)!important;font-size:11px!important;letter-spacing:1px;text-transform:uppercase!important;padding:6px 12px!important}
+  .growth-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;display:inline-block}
+  .growth-pos{background:#1a2a1a;color:var(--green)}
+  .growth-neg{background:#2a1a1a;color:var(--accent)}
+
   /* ── RANKING ── */
   .ranking-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px 40px}
   .rank-table{width:100%;border-collapse:collapse}
@@ -541,6 +560,12 @@ function getDashboardHTML(username) {
       </svg>
       Atualizar Dados
     </button>
+    <button class="btn btn-secondary" onclick="openHistorico()" id="hist-btn" style="border-color:#ffd700;color:#ffd700">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      Comparativo Histórico
+    </button>
     <button class="btn btn-primary" onclick="exportXLS()" id="export-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -567,6 +592,29 @@ function getDashboardHTML(username) {
     </a>
     <span style="color:var(--muted);">← arraste para a barra de favoritos</span>
   </span>
+</div>
+
+<!-- MODAL COMPARATIVO HISTÓRICO -->
+<div class="modal-overlay hidden" id="hist-modal" onclick="if(event.target===this)closeHistorico()">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeHistorico()">×</button>
+    <div style="margin-bottom:20px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Série Histórica</div>
+      <h2 style="font-size:22px;font-weight:800">Comparativo de Edições — Primeira Classe</h2>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">Snapshot na mesma janela de antecedência ao 1º dia do festival · 2026 = dados ao vivo</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+      <div class="chart-card">
+        <div class="chart-title">Ingressos Vendidos por Edição</div>
+        <canvas id="histTicketsChart" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Receita Total (R$) por Edição</div>
+        <canvas id="histRevenueChart" height="200"></canvas>
+      </div>
+    </div>
+    <div id="hist-table-container"></div>
+  </div>
 </div>
 
 <div id="app"></div>
@@ -919,6 +967,121 @@ function sortTable(col) {
   renderTable(_data?.events || []);
 }
 function filterTable(v) { _filter = v; renderTable(_data?.events || []); }
+
+// ═══════════════════════════════════════════════════════════
+// COMPARATIVO HISTÓRICO
+// ═══════════════════════════════════════════════════════════
+const HIST_DATA = [
+  { year: 2015, vendas: 121231, receita: 6749049.30,  midia: 0,          total: 6749049.30,  comissao: 0,          midiaRir: 0,        terreno: 0,         totalRir: 0           },
+  { year: 2017, vendas: 100983, receita: 10098300.00, midia: 1250000.00, total: 11348300.00, comissao: 403932.00,  midiaRir: 625000.00, terreno: 0,         totalRir: 1028932.00  },
+  { year: 2019, vendas: 140852, receita: 13168520.00, midia: 1486305.00, total: 14654825.00, comissao: 534740.00,  midiaRir: 395475.00, terreno: 387342.52, totalRir: 1317557.52  },
+  { year: 2022, vendas: 143518, receita: 17930255.00, midia: 333400.00,  total: 18263655.00, comissao: 1793025.50, midiaRir: 83350.00,  terreno: 701170.00, totalRir: 2577545.50  },
+  { year: 2024, vendas: 157738, receita: 24190432.00, midia: 1994926.00, total: 26185358.00, comissao: 2419043.20, midiaRir: 498731.55, terreno: 753945.73, totalRir: 3671720.48  },
+];
+
+let _histCharts = {};
+
+function openHistorico() {
+  const modal = document.getElementById('hist-modal');
+  modal.classList.remove('hidden');
+  renderHistorico();
+}
+function closeHistorico() {
+  document.getElementById('hist-modal').classList.add('hidden');
+}
+
+function renderHistorico() {
+  // Build current-year row from live data
+  const cur = _data ? {
+    year: 2026,
+    vendas:  _data.totalSold    || 0,
+    receita: _data.totalRevenue || 0,
+    midia:   null,  // não disponível via API
+    total:   _data.totalRevenue || 0,
+    comissao: null, midiaRir: null, terreno: null, totalRir: null
+  } : null;
+
+  const rows = cur ? [...HIST_DATA, cur] : HIST_DATA;
+
+  // ── Charts ──────────────────────────────────────────────
+  const COLORS = ['#5b8dee','#f4a261','#2ec27e','#9b59b6','#1abc9c','#e63946'];
+  const labels = rows.map(r => String(r.year));
+
+  const C = (id, cfg) => {
+    if (_histCharts[id]) _histCharts[id].destroy();
+    _histCharts[id] = new Chart(document.getElementById(id), cfg);
+  };
+
+  C('histTicketsChart', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: rows.map(r => r.vendas),
+        backgroundColor: rows.map((r,i) => r.year===2026 ? '#e63946cc' : COLORS[i]+'99'),
+        borderColor: rows.map((r,i) => r.year===2026 ? '#e63946' : COLORS[i]),
+        borderWidth: 2, borderRadius: 6 }]
+    },
+    options: { responsive:true, plugins:{ legend:{display:false},
+      tooltip:{ callbacks:{ label: ctx => ' ' + Number(ctx.raw).toLocaleString('pt-BR') + ' ingressos' } } },
+      scales:{ x:{ticks:{color:'#7a8499'},grid:{color:'#252d3d'}}, y:{ticks:{color:'#7a8499'},grid:{color:'#252d3d'}} } }
+  });
+
+  C('histRevenueChart', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: rows.map(r => r.total),
+        backgroundColor: rows.map((r,i) => r.year===2026 ? '#ffd70099' : COLORS[i]+'99'),
+        borderColor: rows.map((r,i) => r.year===2026 ? '#ffd700' : COLORS[i]),
+        borderWidth: 2, borderRadius: 6 }]
+    },
+    options: { responsive:true, plugins:{ legend:{display:false},
+      tooltip:{ callbacks:{ label: ctx => ' R$ ' + Number(ctx.raw).toLocaleString('pt-BR',{minimumFractionDigits:0}) } } },
+      scales:{ x:{ticks:{color:'#7a8499'},grid:{color:'#252d3d'}}, y:{ticks:{color:'#7a8499',callback: v => 'R$'+fmt(v)},grid:{color:'#252d3d'}} } }
+  });
+
+  // ── Table ────────────────────────────────────────────────
+  function growth(curr, prev) {
+    if (!prev || !curr) return '';
+    const pct = ((curr - prev) / prev * 100).toFixed(1);
+    const cls = pct >= 0 ? 'growth-pos' : 'growth-neg';
+    return \`<span class="growth-badge \${cls}">\${pct >= 0 ? '+' : ''}\${pct}%</span>\`;
+  }
+  function fmtN(v) { return v == null ? '<span style="color:#5a6475">—</span>' : Number(v).toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+  function fmtMoney(v) { return v == null ? '<span style="color:#5a6475">—</span>' : 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:0}); }
+
+  let html = \`<div style="overflow-x:auto"><table class="hist-table">
+    <thead><tr>
+      <th>Ano</th>
+      <th colspan="3" style="text-align:center;border-bottom:2px solid #5b8dee;color:#5b8dee">PRIMEIRA CLASSE</th>
+      <th></th>
+      <th colspan="4" style="text-align:center;border-bottom:2px solid #f4a261;color:#f4a261">ROCK IN RIO (comissões)</th>
+    </tr><tr>
+      <th></th>
+      <th>Ingressos</th><th>Receita (R$)</th><th>Total c/ Mídia</th>
+      <th></th>
+      <th>Comissão</th><th>Mídia</th><th>Terreno</th><th>Total RiR</th>
+    </tr></thead><tbody>\`;
+
+  rows.forEach((r, i) => {
+    const prev = rows[i - 1];
+    const isCur = r.year === 2026;
+    html += \`<tr class="\${isCur ? 'current-year' : ''}">
+      <td>\${r.year}\${isCur ? ' ⚡' : ''}</td>
+      <td>\${fmtN(r.vendas)}\${prev ? growth(r.vendas, prev.vendas) : ''}</td>
+      <td>\${fmtMoney(r.receita)}</td>
+      <td>\${fmtMoney(r.total)}\${prev ? growth(r.total, prev.total) : ''}</td>
+      <td></td>
+      <td>\${fmtMoney(r.comissao)}</td>
+      <td>\${fmtMoney(r.midiaRir)}</td>
+      <td>\${fmtMoney(r.terreno)}</td>
+      <td>\${fmtMoney(r.totalRir)}</td>
+    </tr>\`;
+  });
+
+  html += '</tbody></table></div>';
+  document.getElementById('hist-table-container').innerHTML = html;
+}
 
 // ═══════════════════════════════════════════════════════════
 // XLS EXPORT
