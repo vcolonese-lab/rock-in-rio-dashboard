@@ -59,8 +59,16 @@ let state = {
 // ─────────────────────────────────────────────
 const TM_BASE = 'https://api.boletius.com';
 
+// Fetch with automatic timeout + abort
+function fetchWithTimeout(url, opts = {}, timeoutMs = 15000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(url, { ...opts, signal: ctrl.signal })
+    .finally(() => clearTimeout(timer));
+}
+
 async function fetchIndicators(eventId, token) {
-  const res = await fetch(`${TM_BASE}/eventConsoleWs/indicators/${eventId}`, {
+  const res = await fetchWithTimeout(`${TM_BASE}/eventConsoleWs/indicators/${eventId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -78,7 +86,7 @@ async function fetchIndicators(eventId, token) {
 }
 
 async function fetchCalendar(eventId, token) {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${TM_BASE}/reportWs/calendarSectorReport/${eventId}?type=calendarSector&month=2026-09&eventId=${eventId}`,
     { headers: { 'Authorization': token } }
   );
@@ -218,6 +226,15 @@ async function refreshData() {
   state.error = null;
   console.log(`[${new Date().toISOString()}] Iniciando refresh de dados...`);
 
+  // Global safety timeout: abort entire refresh after 3 minutes
+  const globalTimeout = setTimeout(() => {
+    if (state.refreshing) {
+      state.refreshing = false;
+      state.error = 'Timeout: refresh demorou mais de 3 minutos. Token pode ter expirado — use o bookmarklet para sincronizar.';
+      console.error('[refresh timeout] Abortado após 3 minutos.');
+    }
+  }, 3 * 60 * 1000);
+
   try {
     const indicatorTasks  = EVENT_IDS.map(id => () => fetchIndicators(id, state.token));
     const calendarTasks   = EVENT_IDS.map(id => () => fetchCalendar(id, state.token));
@@ -227,6 +244,15 @@ async function refreshData() {
       pool(calendarTasks, 6)
     ]);
 
+    // Detect widespread auth failures (token provavelmente expirado)
+    const failures = eventResults.filter(r => !r.ok);
+    if (failures.length > EVENT_IDS.length * 0.5) {
+      const sample = failures[0]?.error || '';
+      state.error = `Token expirado ou inválido (${failures.length}/${EVENT_IDS.length} eventos falharam: ${sample}). Use o bookmarklet para sincronizar.`;
+      console.error('[refresh]', state.error);
+      return;
+    }
+
     state.data        = aggregateData(eventResults, calendarResults);
     state.lastRefresh = new Date();
     console.log(`[${new Date().toISOString()}] Dados atualizados. Total vendido: ${state.data.totalSold} ingressos`);
@@ -235,6 +261,7 @@ async function refreshData() {
     console.error('[refresh error]', err.message);
   } finally {
     state.refreshing = false;
+    clearTimeout(globalTimeout);
   }
 }
 
