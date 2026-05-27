@@ -694,8 +694,16 @@ async function loadData() {
     if (json.data) {
       _data     = json.data;
       _rawShows = json.data.rawShows || [];
-      renderAll();
       document.getElementById('loading').classList.add('hidden');
+      try {
+        renderAll();
+      } catch(renderErr) {
+        console.error('renderAll error:', renderErr);
+        document.getElementById('app').innerHTML += \`
+          <div style="padding:20px 40px;color:#f4a261;font-size:13px">
+            ⚠️ Erro ao renderizar um componente: \${renderErr.message}. Os dados foram carregados com sucesso.
+          </div>\`;
+      }
     } else if (json.error) {
       showError(json.error);
     } else if (json.refreshing) {
