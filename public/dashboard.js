@@ -305,10 +305,6 @@ function renderProjection() {
   const velocityRev = revenue / daysElapsed;          // R$/dia
   const avgTicketPrice = sold > 0 ? revenue / sold : 220;
 
-  // Linear projection (current velocity)
-  const projTrend   = Math.round(sold    + velocityTix * daysLeft);
-  const projRevTrend = revenue + velocityRev * daysLeft;
-
   // Historical growth rates (2019→2022→2024)
   const last2  = HIST_DATA[HIST_DATA.length - 1]; // 2024: 157,738
   const last3  = HIST_DATA[HIST_DATA.length - 2]; // 2022: 143,518
@@ -321,6 +317,17 @@ function renderProjection() {
 
   const projConservador = Math.round(last2.vendas * (1 + minGrow));
   const projOtimista    = Math.round(last2.vendas * (1 + maxGrow));
+
+  // ── Projeção Tendência: velocidade atual + crescimento histórico ──
+  // Combina a projeção linear (velocidade atual) com a âncora histórica (2024 × crescimento médio).
+  // Quanto mais avançado o ciclo de vendas, maior o peso da velocidade observada;
+  // no início do ciclo, o histórico domina para evitar projeções irreais.
+  const salesProgress   = daysElapsed / (daysElapsed + daysLeft);  // 0 (início) → 1 (evento)
+  const projVelocityRaw = Math.round(sold + velocityTix * daysLeft); // puramente linear
+  const projHistBased   = Math.round(last2.vendas * (1 + avgGrow)); // âncora histórica ~167k
+  const velWeight       = Math.pow(salesProgress, 0.7);             // cresce suavemente 0→1
+  const projTrend       = Math.round(projHistBased * (1 - velWeight) + projVelocityRaw * velWeight);
+  const projRevTrend    = projTrend * avgTicketPrice;
 
   // Revenue projections
   const projRevConserv  = last2.total * (1 + minGrow) * (avgTicketPrice / (last2.total / last2.vendas));
@@ -358,6 +365,7 @@ function renderProjection() {
       <div class="proj-scenario tendencia">${projTrend > last2.vendas ? '+' : ''}${((projTrend/last2.vendas-1)*100).toFixed(1)}% vs 2024</div>
       <div class="proj-sub" style="margin-top:8px">${pctTrend}% vendido</div>
       <div class="progress-wrap"><div class="progress-fill" style="width:${pctTrend}%;background:var(--green)"></div></div>
+      <div class="proj-sub" style="margin-top:6px;font-size:10px;color:#7a8499">velocidade atual + crescimento histórico (${(salesProgress*100).toFixed(0)}% do ciclo)</div>
     </div>
     <div class="proj-card otimista">
       <div class="proj-label">Projeção Otimista</div>
