@@ -791,6 +791,19 @@ function renderAll() {
       </div>
     </div>
 
+    <!-- HISTÓRICO DE EDIÇÕES -->
+    <div class="section-heading"><h2>Série Histórica — Edições do Rock in Rio</h2><div class="section-divider"></div></div>
+    <div class="main-grid">
+      <div class="chart-card full">
+        <div class="chart-title">Comparativo entre Edições</div>
+        <div class="chart-subtitle" style="display:flex;align-items:center;gap:16px">
+          Primeira Classe: Ingressos &amp; Receita por Ano
+          <span style="font-size:11px;color:var(--muted);font-weight:400">⚡ 2026 = dados ao vivo</span>
+        </div>
+        <canvas id="historicoChart" height="80"></canvas>
+      </div>
+    </div>
+
     <!-- HEATMAP -->
     <div class="section-heading"><h2>Heatmap Local × Data</h2><div class="section-divider"></div></div>
     <div style="padding:20px 40px">
@@ -820,6 +833,7 @@ function renderAll() {
     </div>\`;
 
   renderCharts(events, byDate, byTime);
+  renderHistoricoChart();
   renderHeatmap(events, byDate, heatmap);
   renderRanking(events, byTime);
   renderTable(events);
@@ -863,6 +877,107 @@ function renderCharts(events, byDate, byTime) {
     options: { responsive: true, plugins: { legend: { display: false } },
       scales: { x: { ticks: { color: '#7a8499', font: { size: 10 } }, grid: { color: '#252d3d' } },
                 y: { ticks: { color: '#7a8499' }, grid: { color: '#252d3d' } } } }
+  });
+}
+
+function renderHistoricoChart() {
+  const cur = _data ? { year: 2026, vendas: _data.totalSold || 0, total: _data.totalRevenue || 0 } : null;
+  const rows = cur ? [...HIST_DATA, cur] : HIST_DATA;
+
+  const labels  = rows.map(r => String(r.year));
+  const tickets = rows.map(r => r.vendas);
+  const revenue = rows.map(r => r.total);
+  const is2026  = rows.map(r => r.year === 2026);
+
+  const barColors   = is2026.map(c => c ? 'rgba(230,57,70,0.85)'  : 'rgba(91,141,238,0.75)');
+  const barBorders  = is2026.map(c => c ? '#e63946' : '#5b8dee');
+
+  if (_charts['historicoChart']) _charts['historicoChart'].destroy();
+  _charts['historicoChart'] = new Chart(document.getElementById('historicoChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Ingressos Vendidos',
+          data: tickets,
+          backgroundColor: barColors,
+          borderColor: barBorders,
+          borderWidth: 2,
+          borderRadius: 6,
+          yAxisID: 'yTickets',
+          order: 2
+        },
+        {
+          label: 'Receita Total (R$)',
+          data: revenue,
+          type: 'line',
+          borderColor: '#ffd700',
+          backgroundColor: 'rgba(255,215,0,0.10)',
+          borderWidth: 3,
+          pointRadius: rows.map(r => r.year === 2026 ? 8 : 5),
+          pointBackgroundColor: is2026.map(c => c ? '#ffd700' : '#ffd70099'),
+          pointBorderColor: '#ffd700',
+          pointBorderWidth: 2,
+          tension: 0.35,
+          fill: true,
+          yAxisID: 'yRevenue',
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#7a8499', font: { size: 12 }, boxWidth: 14, padding: 20 }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === 'Ingressos Vendidos')
+                return \` \${Number(ctx.raw).toLocaleString('pt-BR')} ingressos\`;
+              return \` R\$ \${Number(ctx.raw).toLocaleString('pt-BR', {minimumFractionDigits:0})}\`;
+            },
+            afterBody: (items) => {
+              const i = items[0]?.dataIndex;
+              if (i > 0) {
+                const prev = rows[i-1], curr = rows[i];
+                const pctT = ((curr.vendas - prev.vendas) / prev.vendas * 100).toFixed(1);
+                const pctR = ((curr.total  - prev.total)  / prev.total  * 100).toFixed(1);
+                return [
+                  '  ingressos vs ' + prev.year + ': ' + (pctT >= 0 ? '+' : '') + pctT + '%',
+                  '  receita vs '   + prev.year + ': ' + (pctR >= 0 ? '+' : '') + pctR + '%'
+                ];
+              }
+              return [];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#e8eaf0', font: { size: 13, weight: '700' } },
+          grid: { color: '#252d3d' }
+        },
+        yTickets: {
+          type: 'linear',
+          position: 'left',
+          ticks: { color: '#5b8dee', callback: v => Number(v).toLocaleString('pt-BR') },
+          grid: { color: '#252d3d' },
+          title: { display: true, text: 'Ingressos', color: '#5b8dee', font: { size: 11 } }
+        },
+        yRevenue: {
+          type: 'linear',
+          position: 'right',
+          ticks: { color: '#ffd700', callback: v => 'R$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : (v/1e3).toFixed(0)+'k') },
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: 'Receita', color: '#ffd700', font: { size: 11 } }
+        }
+      }
+    }
   });
 }
 
