@@ -512,6 +512,28 @@ function getDashboardHTML(username) {
   .growth-pos{background:#1a2a1a;color:var(--green)}
   .growth-neg{background:#2a1a1a;color:var(--accent)}
 
+  /* ── PROJEÇÃO ── */
+  .proj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;padding:20px 40px 0}
+  .proj-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden}
+  .proj-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
+  .proj-card.conservador::before{background:#5b8dee}
+  .proj-card.tendencia::before{background:#2ec27e}
+  .proj-card.otimista::before{background:#ffd700}
+  .proj-card.velocidade::before{background:#9b59b6}
+  .proj-label{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .proj-value{font-size:24px;font-weight:800;line-height:1.1}
+  .proj-sub{font-size:11px;color:var(--muted);margin-top:5px}
+  .proj-scenario{font-size:11px;font-weight:600;margin-top:8px;padding:4px 8px;border-radius:4px;display:inline-block}
+  .proj-scenario.conservador{background:#0d1a2a;color:#5b8dee}
+  .proj-scenario.tendencia{background:#0d2a1a;color:#2ec27e}
+  .proj-scenario.otimista{background:#2a2a0d;color:#ffd700}
+  .progress-wrap{background:var(--surface2);border-radius:6px;height:10px;overflow:hidden;margin-top:8px}
+  .progress-fill{height:100%;border-radius:6px;transition:width .6s ease}
+  .proj-settings{display:flex;align-items:center;gap:12px;padding:12px 40px 0;flex-wrap:wrap}
+  .proj-input{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text);font-size:13px;width:80px;text-align:center;outline:none}
+  .proj-input:focus{border-color:var(--accent)}
+  .proj-input-label{font-size:12px;color:var(--muted)}
+
   /* ── RANKING ── */
   .ranking-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px 40px}
   .rank-table{width:100%;border-collapse:collapse}
@@ -756,6 +778,22 @@ function renderAll() {
         <div class="kpi-sub">pedidos cancelados</div></div>
     </div>
 
+    <!-- PROJEÇÃO -->
+    <div class="section-heading"><h2>Projeção de Vendas — 2026</h2><div class="section-divider"></div></div>
+    <div class="proj-settings">
+      <span class="proj-input-label">Dias desde abertura das vendas:</span>
+      <input class="proj-input" type="number" id="proj-days-elapsed" value="90" min="1" max="365" oninput="renderProjection()">
+      <span class="proj-input-label" id="proj-countdown"></span>
+    </div>
+    <div class="proj-grid" id="proj-cards"></div>
+    <div style="padding:16px 40px 0">
+      <div class="chart-card">
+        <div class="chart-title">Projeção vs Histórico</div>
+        <div class="chart-subtitle">Total de ingressos ao final de cada edição (projetado para 2026)</div>
+        <canvas id="projChart" height="70"></canvas>
+      </div>
+    </div>
+
     <!-- RANKING -->
     <div class="section-heading"><h2>Ranking de Ocupação</h2><div class="section-divider"></div></div>
     <div class="ranking-grid">
@@ -835,6 +873,7 @@ function renderAll() {
   renderCharts(events, byDate, byTime);
   renderHistoricoChart();
   renderHeatmap(events, byDate, heatmap);
+  renderProjection();
   renderRanking(events, byTime);
   renderTable(events);
 }
@@ -877,6 +916,152 @@ function renderCharts(events, byDate, byTime) {
     options: { responsive: true, plugins: { legend: { display: false } },
       scales: { x: { ticks: { color: '#7a8499', font: { size: 10 } }, grid: { color: '#252d3d' } },
                 y: { ticks: { color: '#7a8499' }, grid: { color: '#252d3d' } } } }
+  });
+}
+
+function renderProjection() {
+  if (!_data) return;
+  const sold    = _data.totalSold    || 0;
+  const revenue = _data.totalRevenue || 0;
+
+  // Days remaining until first event (Sep 4, 2026)
+  const eventDay     = new Date('2026-09-04T00:00:00');
+  const today        = new Date();
+  const daysLeft     = Math.max(0, Math.round((eventDay - today) / 86400000));
+  const daysElapsed  = parseInt(document.getElementById('proj-days-elapsed')?.value || 90, 10) || 90;
+  const totalDays    = daysElapsed + daysLeft;
+
+  // Countdown display
+  const cdEl = document.getElementById('proj-countdown');
+  if (cdEl) cdEl.textContent = daysLeft + ' dias até o 1º evento (4 Set 2026)';
+
+  // Current velocity
+  const velocityTix = sold    / daysElapsed;          // tickets/dia
+  const velocityRev = revenue / daysElapsed;          // R$/dia
+  const avgTicketPrice = sold > 0 ? revenue / sold : 220;
+
+  // Linear projection (current velocity)
+  const projTrend   = Math.round(sold    + velocityTix * daysLeft);
+  const projRevTrend = revenue + velocityRev * daysLeft;
+
+  // Historical growth rates (2019→2022→2024)
+  const last2  = HIST_DATA[HIST_DATA.length - 1]; // 2024: 157,738
+  const last3  = HIST_DATA[HIST_DATA.length - 2]; // 2022: 143,518
+  const last4  = HIST_DATA[HIST_DATA.length - 3]; // 2019: 140,852
+  const grow24 = (last2.vendas - last3.vendas) / last3.vendas; // 2022→2024: +9.9%
+  const grow22 = (last3.vendas - last4.vendas) / last4.vendas; // 2019→2022: +1.9%
+  const avgGrow = (grow24 + grow22) / 2;                        // ~5.9%
+  const minGrow = Math.min(grow24, grow22);                     // ~1.9%
+  const maxGrow = Math.max(grow24 * 1.3, avgGrow * 1.5);       // optimistic
+
+  const projConservador = Math.round(last2.vendas * (1 + minGrow));
+  const projOtimista    = Math.round(last2.vendas * (1 + maxGrow));
+
+  // Revenue projections
+  const projRevConserv  = last2.total * (1 + minGrow) * (avgTicketPrice / (last2.total / last2.vendas));
+  const projRevOtimista = last2.total * (1 + maxGrow) * (avgTicketPrice / (last2.total / last2.vendas));
+
+  // Progress % toward projected final
+  const pctConserv  = Math.min(100, (sold / projConservador * 100)).toFixed(1);
+  const pctTrend    = Math.min(100, (sold / projTrend      * 100)).toFixed(1);
+  const pctOtimista = Math.min(100, (sold / projOtimista   * 100)).toFixed(1);
+
+  const fmtR = n => 'R$ ' + Number(n).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  const fmtN = n => Number(n).toLocaleString('pt-BR');
+
+  // Render KPI cards
+  document.getElementById('proj-cards').innerHTML = \`
+    <div class="proj-card velocidade">
+      <div class="proj-label">Velocidade Atual</div>
+      <div class="proj-value" style="color:var(--purple)">\${velocityTix.toFixed(1)}</div>
+      <div class="proj-sub">ingressos / dia</div>
+      <div class="proj-sub">\${fmtR(velocityRev)} / dia</div>
+      <div class="proj-sub" style="margin-top:8px">\${fmtN(sold)} vendidos · \${daysLeft} dias restantes</div>
+    </div>
+    <div class="proj-card conservador">
+      <div class="proj-label">Projeção Conservadora</div>
+      <div class="proj-value" style="color:var(--blue)">\${fmtN(projConservador)}</div>
+      <div class="proj-sub">\${fmtR(last2.total * (1 + minGrow))}</div>
+      <div class="proj-scenario conservador">+\${(minGrow*100).toFixed(1)}% vs 2024</div>
+      <div class="proj-sub" style="margin-top:8px">\${pctConserv}% vendido</div>
+      <div class="progress-wrap"><div class="progress-fill" style="width:\${pctConserv}%;background:var(--blue)"></div></div>
+    </div>
+    <div class="proj-card tendencia">
+      <div class="proj-label">Projeção Tendência ⚡</div>
+      <div class="proj-value" style="color:var(--green)">\${fmtN(projTrend)}</div>
+      <div class="proj-sub">\${fmtR(projRevTrend)}</div>
+      <div class="proj-scenario tendencia">\${projTrend > last2.vendas ? '+' : ''}\${((projTrend/last2.vendas-1)*100).toFixed(1)}% vs 2024</div>
+      <div class="proj-sub" style="margin-top:8px">\${pctTrend}% vendido</div>
+      <div class="progress-wrap"><div class="progress-fill" style="width:\${pctTrend}%;background:var(--green)"></div></div>
+    </div>
+    <div class="proj-card otimista">
+      <div class="proj-label">Projeção Otimista</div>
+      <div class="proj-value" style="color:var(--gold)">\${fmtN(projOtimista)}</div>
+      <div class="proj-sub">\${fmtR(last2.total * (1 + maxGrow))}</div>
+      <div class="proj-scenario otimista">+\${(maxGrow*100).toFixed(1)}% vs 2024</div>
+      <div class="proj-sub" style="margin-top:8px">\${pctOtimista}% vendido</div>
+      <div class="progress-wrap"><div class="progress-fill" style="width:\${pctOtimista}%;background:var(--gold)"></div></div>
+    </div>\`;
+
+  // Projection chart — historical finals + 2026 scenarios
+  const histLabels = HIST_DATA.map(r => String(r.year));
+  const histVals   = HIST_DATA.map(r => r.vendas);
+  const histColors = HIST_DATA.map(() => 'rgba(91,141,238,0.6)');
+  const histBorders= HIST_DATA.map(() => '#5b8dee');
+
+  const allLabels = [...histLabels, '2026\nConserv.', '2026\nTendência', '2026\nOtimista'];
+  const allVals   = [...histVals,   projConservador, projTrend, projOtimista];
+  const allColors = [...histColors, 'rgba(91,141,238,0.4)', 'rgba(46,194,126,0.75)', 'rgba(255,215,0,0.75)'];
+  const allBorders= [...histBorders,'#5b8dee',              '#2ec27e',               '#ffd700'];
+
+  // Current sales bar overlay
+  const currentOverlay = [...HIST_DATA.map(() => null), sold, sold, sold];
+
+  if (_charts['projChart']) _charts['projChart'].destroy();
+  _charts['projChart'] = new Chart(document.getElementById('projChart'), {
+    type: 'bar',
+    data: {
+      labels: allLabels,
+      datasets: [
+        {
+          label: 'Projeção Final',
+          data: allVals,
+          backgroundColor: allColors,
+          borderColor: allBorders,
+          borderWidth: 2,
+          borderRadius: 6,
+          order: 2
+        },
+        {
+          label: 'Vendido até hoje',
+          data: currentOverlay,
+          backgroundColor: 'rgba(230,57,70,0.6)',
+          borderColor: '#e63946',
+          borderWidth: 2,
+          borderRadius: 6,
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: true, labels: { color: '#7a8499', font: { size: 11 }, boxWidth: 12, padding: 16 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + Number(ctx.raw).toLocaleString('pt-BR') + ' ingressos'
+          }
+        },
+        annotation: {}
+      },
+      scales: {
+        x: { ticks: { color: '#7a8499', font: { size: 11 } }, grid: { color: '#252d3d' } },
+        y: {
+          ticks: { color: '#7a8499', callback: v => Number(v).toLocaleString('pt-BR') },
+          grid: { color: '#252d3d' }
+        }
+      }
+    }
   });
 }
 
