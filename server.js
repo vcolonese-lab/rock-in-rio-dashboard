@@ -25,6 +25,9 @@ const USERS = Object.fromEntries(
 const CROWDER_BASE    = 'https://data.getcrowder.com';
 let CROWDER_API_KEY = process.env.CROWDER_API_KEY ||
   '0b666073629dd36b18cb760355b4daf7105a7a9cd1d338cd05f9723e971b78c9';
+// Filter: only include movements whose event name contains this string.
+// Set to '' (empty) to include all events from the organizer.
+const EVENT_NAME_FILTER = process.env.EVENT_NAME_FILTER || 'Rock in Rio';
 
 // ─────────────────────────────────────────────
 // STATE
@@ -45,8 +48,11 @@ function aggregateCrowderData(movements) {
   const DATE_LABELS    = ['Sex 04/Set','Sáb 05/Set','Dom 06/Set','Seg 07/Set',
                           'Qui 11/Set','Sex 12/Set','Sáb 13/Set'];
 
-  // Filter only TICKET movements
-  const tickets = movements.filter(m => m.concept === 'TICKET');
+  // Filter only TICKET movements, optionally restricted to a specific event name
+  const tickets = movements.filter(m =>
+    m.concept === 'TICKET' &&
+    (!EVENT_NAME_FILTER || (m.event && m.event.name && m.event.name.includes(EVENT_NAME_FILTER)))
+  );
 
   const showMap = {};
   let totalSold = 0, totalRevenue = 0;
