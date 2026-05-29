@@ -395,6 +395,11 @@ app.get('/perfil', requireAuth, (req, res) => {
   res.send(getPerfilHTML(req.session.user));
 });
 
+// ── Sub-page: Lista de Eventos ─────────────
+app.get('/eventos', requireAuth, (req, res) => {
+  res.send(getEventosHTML(req.session.user));
+});
+
 // ─────────────────────────────────────────────
 // SHARED CSS VARIABLES (dark theme)
 // ─────────────────────────────────────────────
@@ -628,6 +633,11 @@ ${SHARED_HEADER_CSS}
   <a href="/perfil" class="nav-card">
     <div class="nav-card-icon">🎟️</div>
     <div><div class="nav-card-title">Produtos & Setores</div><div class="nav-card-desc">Breakdown por setor, produto e show</div></div>
+    <div class="nav-card-arrow">›</div>
+  </a>
+  <a href="/eventos" class="nav-card">
+    <div class="nav-card-icon">🗓️</div>
+    <div><div class="nav-card-title">Lista de Eventos</div><div class="nav-card-desc">Todos os shows com status de ocupação</div></div>
     <div class="nav-card-arrow">›</div>
   </a>
 </div>
@@ -997,6 +1007,297 @@ async function loadData() {
   } catch(e) {
     document.getElementById('status-dot').className='status-dot red';
     document.getElementById('status-text').textContent='Erro: '+e.message;
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+</body></html>`;
+}
+
+// ─────────────────────────────────────────────
+// LISTA DE EVENTOS PAGE
+// ─────────────────────────────────────────────
+function getEventosHTML(username) {
+  // Capacidades conhecidas por produto/setor (ingressos disponíveis)
+  // Ajuste conforme necessário
+  const CAPACIDADES = {
+    'Primeira Classe - Sexta': 500,
+    'Primeira Classe - Sábado': 500,
+    'Primeira Classe - Domingo': 500,
+    'Primeira Classe - Segunda': 500,
+    'Primeira Classe - Quinta': 500,
+    'Primeira Classe - Sexta 2': 500,
+    'Primeira Classe - Sábado 2': 500,
+  };
+  const DEFAULT_CAP = 500; // capacidade padrão por produto quando não especificada
+
+  const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
+                          '2026-09-11','2026-09-12','2026-09-13'];
+  const DATE_LABELS = {
+    '2026-09-04': 'Sexta-feira, 04 de Setembro',
+    '2026-09-05': 'Sábado, 05 de Setembro',
+    '2026-09-06': 'Domingo, 06 de Setembro',
+    '2026-09-07': 'Segunda-feira, 07 de Setembro',
+    '2026-09-11': 'Quinta-feira, 11 de Setembro',
+    '2026-09-12': 'Sexta-feira, 12 de Setembro',
+    '2026-09-13': 'Sábado, 13 de Setembro',
+  };
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lista de Eventos — Rock in Rio 2026</title>
+<style>
+${SHARED_CSS_VARS}
+${SHARED_HEADER_CSS}
+  .page-wrap{padding:20px 32px 48px}
+  .day-section{margin-bottom:32px}
+  .day-header{display:flex;align-items:center;gap:14px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+  .day-badge{background:var(--accent);color:#fff;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;padding:5px 12px;border-radius:6px;flex-shrink:0}
+  .day-title{font-size:17px;font-weight:700}
+  .day-stats{margin-left:auto;font-size:12px;color:var(--muted);text-align:right}
+  .day-stats strong{color:var(--text)}
+
+  .events-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .event-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;transition:.2s}
+  .event-card:hover{border-color:var(--border);transform:translateY(-1px)}
+  .event-card.alert-critical{border-color:#e63946;box-shadow:0 0 0 1px #e6394633}
+  .event-card.alert-warning{border-color:#f4a261;box-shadow:0 0 0 1px #f4a26133}
+  .event-card.alert-ok{border-color:var(--border)}
+
+  .event-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:12px}
+  .event-name{font-size:13px;font-weight:700;line-height:1.3;flex:1}
+  .alert-badge{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;padding:3px 8px;border-radius:4px;flex-shrink:0;white-space:nowrap}
+  .alert-badge.critical{background:#e6394622;color:#e63946;border:1px solid #e6394644}
+  .alert-badge.warning{background:#f4a26122;color:#f4a261;border:1px solid #f4a26144}
+  .alert-badge.ok{background:#2ec27e22;color:#2ec27e;border:1px solid #2ec27e44}
+  .alert-badge.no-data{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+
+  .event-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin-bottom:12px}
+  .meta-sep{color:var(--border)}
+
+  .progress-wrap{margin-bottom:10px}
+  .progress-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:5px}
+  .progress-label strong{color:var(--text);font-size:12px}
+  .progress-bar{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden}
+  .progress-fill{height:100%;border-radius:3px;transition:width .4s ease}
+  .progress-fill.critical{background:var(--accent)}
+  .progress-fill.warning{background:var(--accent2)}
+  .progress-fill.ok{background:var(--green)}
+  .progress-fill.no-data{background:var(--muted)}
+
+  .event-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat-item{background:var(--surface2);border-radius:8px;padding:8px 10px}
+  .stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px}
+  .stat-value{font-size:15px;font-weight:700}
+  .stat-value.red{color:var(--accent)}
+  .stat-value.green{color:var(--green)}
+  .stat-value.muted{color:var(--muted)}
+
+  .summary-bar{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 20px;
+    display:flex;gap:24px;flex-wrap:wrap;align-items:center;margin-bottom:24px}
+  .summary-item{display:flex;flex-direction:column;gap:2px}
+  .summary-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+  .summary-value{font-size:18px;font-weight:800}
+  .summary-sep{width:1px;background:var(--border);align-self:stretch}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+  .no-data-msg{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+
+  @media(max-width:768px){
+    .page-wrap{padding:16px 16px 40px}
+    .events-grid{grid-template-columns:1fr}
+    .summary-bar{gap:16px}
+  }
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><span>Carregando eventos...</span></div>
+
+<header>
+  <div class="header-left">
+    <div class="logo-badge">RiR 2026</div>
+    <div><h1>Lista de Eventos</h1><p>Ocupação e disponibilidade por show</p></div>
+  </div>
+  <div class="header-right">
+    <a href="/" class="btn btn-back">← Voltar ao Dashboard</a>
+  </div>
+</header>
+<div id="status-bar">
+  <div id="status-dot" class="status-dot"></div>
+  <span id="status-text">Carregando...</span>
+</div>
+
+<div class="page-wrap" id="app">
+  <!-- preenchido por JS -->
+</div>
+
+<script>
+const DEFAULT_CAP = ${DEFAULT_CAP};
+const CAPS = ${JSON.stringify(CAPACIDADES)};
+
+const FESTIVAL_DATES = ${JSON.stringify(FESTIVAL_DATES)};
+const DATE_LABELS = ${JSON.stringify(DATE_LABELS)};
+
+function fmt(n) { return (n||0).toLocaleString('pt-BR'); }
+function fmtR(n) { return 'R$ '+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+function fmtPct(pct) { return pct.toFixed(1)+'%'; }
+
+function getCapacity(show) {
+  // Try to match by show name / product name
+  for (const [k,v] of Object.entries(CAPS)) {
+    if ((show.local||'').toLowerCase().includes(k.toLowerCase()) ||
+        (show.productName||'').toLowerCase().includes(k.toLowerCase())) return v;
+  }
+  return DEFAULT_CAP;
+}
+
+function alertLevel(sold, cap) {
+  if (!cap) return 'no-data';
+  const pct = sold / cap * 100;
+  if (pct >= 90) return 'critical';
+  if (pct >= 80) return 'warning';
+  return 'ok';
+}
+function alertLabel(level) {
+  if (level === 'critical') return '🚨 LOTAÇÃO CRÍTICA';
+  if (level === 'warning')  return '⚠️ QUASE ESGOTADO';
+  if (level === 'ok')       return '✓ DISPONÍVEL';
+  return '— SEM CAPACIDADE';
+}
+
+function render(rawShows) {
+  if (!rawShows || rawShows.length === 0) {
+    document.getElementById('app').innerHTML = '<div class="no-data-msg">Nenhum evento encontrado.</div>';
+    return;
+  }
+
+  // Group by festival date
+  const byDate = {};
+  FESTIVAL_DATES.forEach(d => { byDate[d] = []; });
+  const other = [];
+
+  for (const s of rawShows) {
+    if (s.tks <= 0) continue; // skip zeroed/refunded
+    if (byDate[s.date] !== undefined) byDate[s.date].push(s);
+    else other.push(s);
+  }
+
+  // Sort shows within each day by time then name
+  for (const d of FESTIVAL_DATES) {
+    byDate[d].sort((a,b) => (a.time||'').localeCompare(b.time||'') || (a.local||'').localeCompare(b.local||''));
+  }
+
+  // Global summary
+  const totalShows = rawShows.filter(s=>s.tks>0).length;
+  const totalSold  = rawShows.reduce((s,r)=>s+(r.tks||0),0);
+  const alertCount = rawShows.filter(s=>{
+    const level = alertLevel(s.tks, getCapacity(s));
+    return level==='critical'||level==='warning';
+  }).length;
+  const totalCap = totalShows * DEFAULT_CAP;
+
+  let html = \`
+  <div class="summary-bar">
+    <div class="summary-item"><div class="summary-label">Total de Produtos</div><div class="summary-value">\${fmt(totalShows)}</div></div>
+    <div class="summary-sep"></div>
+    <div class="summary-item"><div class="summary-label">Ingressos Vendidos</div><div class="summary-value" style="color:var(--green)">\${fmt(totalSold)}</div></div>
+    <div class="summary-sep"></div>
+    <div class="summary-item"><div class="summary-label">Alertas de Ocupação</div><div class="summary-value" style="color:\${alertCount>0?'var(--accent)':'var(--muted)'}">\${alertCount}</div></div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>≥ 90% — Lotação crítica</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>≥ 80% — Quase esgotado</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>< 80% — Disponível</div>
+  </div>\`;
+
+  for (const d of FESTIVAL_DATES) {
+    const shows = byDate[d];
+    if (shows.length === 0) continue;
+
+    const daySold = shows.reduce((s,r)=>s+(r.tks||0),0);
+    const dayAlerts = shows.filter(s=>{const l=alertLevel(s.tks,getCapacity(s));return l==='critical'||l==='warning';}).length;
+
+    html += \`<div class="day-section">
+    <div class="day-header">
+      <div class="day-badge">\${d.split('-')[2]+'/'+d.split('-')[1]}</div>
+      <div class="day-title">\${DATE_LABELS[d]||d}</div>
+      <div class="day-stats"><strong>\${fmt(daySold)}</strong> vendidos\${dayAlerts>0?' &nbsp;·&nbsp; <span style="color:var(--accent)">'+dayAlerts+' alerta'+(dayAlerts>1?'s':'')+'</span>':''}</div>
+    </div>
+    <div class="events-grid">\`;
+
+    for (const s of shows) {
+      const cap   = getCapacity(s);
+      const sold  = s.tks || 0;
+      const pct   = cap ? Math.min(sold / cap * 100, 100) : null;
+      const level = alertLevel(sold, cap);
+      const avail = cap ? Math.max(cap - sold, 0) : null;
+
+      html += \`<div class="event-card alert-\${level}">
+        <div class="event-header">
+          <div class="event-name">\${s.productName || s.local || s.sectorName || '—'}</div>
+          <div class="alert-badge \${level}">\${alertLabel(level)}</div>
+        </div>
+        <div class="event-meta">
+          <span>🕐 \${s.time||'—'}</span>
+          <span class="meta-sep">·</span>
+          <span>\${s.sectorName||s.local||'—'}</span>
+        </div>
+        \${cap ? \`<div class="progress-wrap">
+          <div class="progress-label">
+            <span>Ocupação</span>
+            <strong>\${fmtPct(pct)}</strong>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill \${level}" style="width:\${pct}%"></div>
+          </div>
+        </div>\` : ''}
+        <div class="event-stats">
+          <div class="stat-item">
+            <div class="stat-label">Vendidos</div>
+            <div class="stat-value green">\${fmt(sold)}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Disponíveis</div>
+            <div class="stat-value \${avail===null?'muted':avail===0?'red':''}">\${avail===null?'N/D':fmt(avail)}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Cancelados</div>
+            <div class="stat-value \${(s.cancelled||0)>0?'red':'muted'}">\${fmt(s.cancelled||0)}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Receita</div>
+            <div class="stat-value">\${fmtR(s.subtotal||0)}</div>
+          </div>
+        </div>
+      </div>\`;
+    }
+
+    html += '</div></div>';
+  }
+
+  document.getElementById('app').innerHTML = html;
+}
+
+async function loadData() {
+  try {
+    const res  = await fetch('/api/data');
+    const json = await res.json();
+    const d    = json.data;
+    if (!d) throw new Error('Sem dados');
+    render(d.rawShows || []);
+    document.getElementById('status-dot').className = 'status-dot green';
+    document.getElementById('status-text').textContent = 'Dados ao vivo · ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '—');
+    document.getElementById('loading').classList.add('hidden');
+  } catch(e) {
+    document.getElementById('status-dot').className = 'status-dot red';
+    document.getElementById('status-text').textContent = 'Erro: ' + e.message;
     document.getElementById('loading').classList.add('hidden');
   }
 }
