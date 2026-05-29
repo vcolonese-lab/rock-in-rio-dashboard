@@ -57,7 +57,7 @@ function aggregateCrowderData(movements) {
   const showMap = {};
   let totalSold = 0, totalRevenue = 0;
   let totalCancelled = 0, totalCancelledRevenue = 0;
-  const byDate = {}, byTime = {};
+  const byDate = {}, byTime = {}, salesByDate = {};
   FESTIVAL_DATES.forEach(d => { byDate[d] = 0; });
 
   for (const m of tickets) {
@@ -97,11 +97,19 @@ function aggregateCrowderData(movements) {
     totalSold    += m.ticketCount || 0;
     totalRevenue += m.amount      || 0;
 
-    // Accumulate by date/time (only positive movements)
+    // Accumulate by festival date/time (only positive movements)
     if ((m.ticketCount || 0) > 0) {
       const d = entry.date, t = entry.time;
       if (FESTIVAL_DATES.includes(d)) byDate[d] = (byDate[d] || 0) + (m.ticketCount || 0);
       if (t) byTime[t] = (byTime[t] || 0) + (m.ticketCount || 0);
+    }
+
+    // Accumulate by actual SALE date (purchase date, for day-by-day report)
+    const saleDate = (m.date || '').substring(0, 10);
+    if (saleDate) {
+      if (!salesByDate[saleDate]) salesByDate[saleDate] = { tks: 0, revenue: 0 };
+      salesByDate[saleDate].tks     += m.ticketCount || 0;
+      salesByDate[saleDate].revenue += m.amount      || 0;
     }
   }
 
@@ -148,8 +156,14 @@ function aggregateCrowderData(movements) {
     date, label: DATE_LABELS[i], tks: byDate[date] || 0
   }));
 
+  // Build salesByDate sorted array for the day-by-day comparative export
+  const salesByDateArr = Object.entries(salesByDate)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, v]) => ({ date, tks: v.tks, revenue: v.revenue }));
+
   return {
     rawShows, events, byDate: byDateArr, byTime: byTimeArr, heatmap: {},
+    salesByDate: salesByDateArr,
     totalSold, totalRevenue,
     totalCancelled, totalCancelledRevenue,
     totalReserved: 0, totalReservedRevenue: 0
@@ -564,6 +578,12 @@ function getDashboardHTML(username) {
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
       </svg>
       Comparativo Histórico
+    </button>
+    <button class="btn btn-primary" onclick="exportComparativo()" id="export-comp-btn" style="background:#2ec27e">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      Comparativo Dia a Dia
     </button>
     <button class="btn btn-primary" onclick="exportXLS()" id="export-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
