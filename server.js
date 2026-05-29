@@ -260,6 +260,12 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ── Public: sales by date for spreadsheet export (no auth) ─
+app.get('/health/salesbydate', (req, res) => {
+  if (!state.data) return res.json({ ok: false, message: 'Sem dados ainda' });
+  res.json({ ok: true, salesByDate: state.data.salesByDate || [] });
+});
+
 // ── Public debug: list unique events (no auth) ─
 app.get('/health/events', (req, res) => {
   if (!state.data) return res.json({ ok: false, message: 'Sem dados ainda' });
