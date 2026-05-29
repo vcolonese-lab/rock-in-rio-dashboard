@@ -121,7 +121,7 @@ function aggregateCrowderData(movements) {
     time:        s.time,
     tks:         s.tks,
     subtotal:    s.subtotal,
-    taxa:        0,
+    taxa:        s.subtotal * 0.10,
     // extra fields for richer display
     eventId:     s.eventId,
     eventName:   s.eventName,

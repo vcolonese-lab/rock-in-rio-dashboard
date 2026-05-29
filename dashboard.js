@@ -100,12 +100,14 @@ function renderAll() {
   const { events, byDate, byTime, heatmap, totalSold, totalRevenue,
           totalReserved, totalReservedRevenue, totalCancelled, totalCancelledRevenue } = _data;
 
-  const totalTax       = _rawShows.reduce((s, r) => s + (r.taxa || 0), 0);
   const totalTickets   = events.reduce((s, e) => s + e.sold, 0);
   const totalEvents    = events.filter(e => e.sold > 0).length;
-  const totalPurchases = events.reduce((s, e) => s + e.purchases, 0);
+  const totalSalesDays = (_data.byDate || []).filter(d => d.tks > 0).length;
+  const totalTax       = _rawShows.reduce((s, r) => s + (r.taxa || 0), 0);
+  const ticketMedio    = totalTickets > 0 ? totalRevenue / totalTickets : 0;
   const totalRes       = events.reduce((s, e) => s + (e.reserved || 0), 0);
   const totalCan       = events.reduce((s, e) => s + (e.cancelled || 0), 0);
+  const totalCanRev    = events.reduce((s, e) => s + (e.cancelledRevenue || 0), 0);
 
   document.getElementById('app').innerHTML = `
     <!-- KPIs -->
@@ -114,18 +116,18 @@ function renderAll() {
       <div class="kpi-card red"><div class="kpi-label">Ingressos Vendidos</div>
         <div class="kpi-value">${fmt(totalTickets)}</div>
         <div class="kpi-sub">em ${totalEvents} locais ativos</div></div>
-      <div class="kpi-card gold"><div class="kpi-label">Receita (Subtotal)</div>
+      <div class="kpi-card gold"><div class="kpi-label">Receita Bruta</div>
         <div class="kpi-value">${fmtR(totalRevenue)}</div>
-        <div class="kpi-sub">+ ${fmtR(totalTax)} em taxas</div></div>
-      <div class="kpi-card blue"><div class="kpi-label">Total c/ Taxas</div>
+        <div class="kpi-sub">valor dos ingressos</div></div>
+      <div class="kpi-card blue"><div class="kpi-label">Total c/ Taxas (10%)</div>
         <div class="kpi-value">${fmtR(totalRevenue + totalTax)}</div>
-        <div class="kpi-sub">receita bruta total</div></div>
-      <div class="kpi-card green"><div class="kpi-label">Compras Realizadas</div>
-        <div class="kpi-value">${fmt(totalPurchases)}</div>
-        <div class="kpi-sub">pedidos únicos</div></div>
-      <div class="kpi-card teal"><div class="kpi-label">Ticket Médio / Pedido</div>
-        <div class="kpi-value">${fmtR(totalPurchases ? totalRevenue / totalPurchases : 0)}</div>
-        <div class="kpi-sub">${totalPurchases ? (totalTickets/totalPurchases).toFixed(1) : 0} ingr./pedido</div></div>
+        <div class="kpi-sub">+ ${fmtR(totalTax)} em taxas</div></div>
+      <div class="kpi-card teal"><div class="kpi-label">Ticket Médio</div>
+        <div class="kpi-value">${fmtR(ticketMedio)}</div>
+        <div class="kpi-sub">por ingresso vendido</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Dias de Venda</div>
+        <div class="kpi-value">${fmt(totalSalesDays)}</div>
+        <div class="kpi-sub">dias com vendas registradas</div></div>
       <div class="kpi-card purple"><div class="kpi-label">Locais</div>
         <div class="kpi-value">36</div>
         <div class="kpi-sub">${totalEvents} com vendas</div></div>
@@ -134,7 +136,7 @@ function renderAll() {
         <div class="kpi-sub">pedidos em aberto</div></div>
       <div class="kpi-card" style="border-top:3px solid #e63946"><div class="kpi-label">Cancelados</div>
         <div class="kpi-value" style="color:#e63946">${fmt(totalCan)}</div>
-        <div class="kpi-sub">pedidos cancelados</div></div>
+        <div class="kpi-sub">${fmtR(totalCanRev)} estornados</div></div>
     </div>
 
     <!-- PROJEÇÃO -->
@@ -219,10 +221,9 @@ function renderAll() {
             <th onclick="sortTable('name')">Local ↕</th>
             <th onclick="sortTable('sold')">Ingressos ↕</th>
             <th onclick="sortTable('revenue')">Subtotal ↕</th>
-            <th onclick="sortTable('purchases')">Compras ↕</th>
+            <th onclick="sortTable('shows')">Shows ↕</th>
             <th onclick="sortTable('reserved')" style="color:#f4a261">Reservados ↕</th>
             <th onclick="sortTable('cancelled')" style="color:#e63946">Cancelados ↕</th>
-            <th onclick="sortTable('shows')">Shows ↕</th>
           </tr></thead>
           <tbody id="evTbody"></tbody>
         </table>
@@ -622,10 +623,8 @@ function renderTable(events) {
       <td><strong>${e.name}</strong></td>
       <td><span class="badge-sold">${e.sold}</span></td>
       <td>${fmtR(e.revenue)}</td>
-      <td>${e.purchases}</td>
       <td style="color:${e.reserved > 0 ? '#f4a261' : 'inherit'}">${e.reserved || 0}</td>
       <td style="color:${e.cancelled > 0 ? '#e63946' : 'inherit'}">${e.cancelled || 0}</td>
-      <td>${e.shows}</td>
     </tr>`).join('');
 }
 
@@ -781,6 +780,142 @@ function exportXLS() {
   XLSX.utils.book_append_sheet(wb, ws2, 'Resumo por Local');
 
   XLSX.writeFile(wb, `primeira-classe-rock-in-rio-${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT COMPARATIVO DIA A DIA
+// ═══════════════════════════════════════════════════════════
+function exportComparativo() {
+  if (!_data) { alert('Nenhum dado disponível.'); return; }
+  if (typeof XLSX === 'undefined') { alert('SheetJS carregando, tente em breve.'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // ── Sheet 1: Dia a Dia 2026 ──────────────────────────────
+  const salesByDate = (_data.salesByDate || []).filter(d => d.tks !== 0);
+  const diasRows = [
+    ['Data de Venda', 'Dia da Semana', 'Vendas do Dia', 'Cancelamentos do Dia',
+     'Líquido do Dia', 'Acumulado (Vendas)', 'Receita do Dia (R$)', 'Receita Acumulada (R$)']
+  ];
+  const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let cumTks = 0, cumRev = 0;
+  for (const row of salesByDate) {
+    const dt = new Date(row.date + 'T12:00:00');
+    const diaSemana = dias[dt.getDay()];
+    const liq = row.tks;
+    cumTks += liq;
+    cumRev += row.revenue;
+    diasRows.push([
+      row.date, diaSemana,
+      liq > 0 ? liq : 0,
+      liq < 0 ? Math.abs(liq) : 0,
+      liq,
+      cumTks,
+      +row.revenue.toFixed(2),
+      +cumRev.toFixed(2)
+    ]);
+  }
+  // Total row
+  diasRows.push(['', 'TOTAL', '', '', cumTks, cumTks, +cumRev.toFixed(2), +cumRev.toFixed(2)]);
+  const ws1 = XLSX.utils.aoa_to_sheet(diasRows);
+  ws1['!cols'] = [{wch:14},{wch:14},{wch:16},{wch:22},{wch:16},{wch:20},{wch:20},{wch:22}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Dia a Dia 2026');
+
+  // ── Sheet 2: Comparativo Histórico ──────────────────────
+  const cur2026 = {
+    year: 2026,
+    vendas:   _data.totalSold    || 0,
+    receita:  _data.totalRevenue || 0,
+    midia:    null,
+    total:    _data.totalRevenue || 0,
+    comissao: null, midiaRir: null, terreno: null, totalRir: null
+  };
+  const allEditions = [...HIST_DATA, cur2026];
+
+  const histRows = [
+    // Header grupos
+    ['', 'PRIMEIRA CLASSE', '', '', '', '', 'ROCK IN RIO', '', '', ''],
+    ['Edição', 'Vendas', 'Receita (R$)', 'Mídia (R$)', 'Total Primeira Classe (R$)', '',
+     'Comissão (R$)', 'Mídia RiR (R$)', 'Terreno (R$)', 'Total RiR (R$)']
+  ];
+  for (const r of allEditions) {
+    const pct = r.year !== 2015 ? ((r.vendas - HIST_DATA[HIST_DATA.length-1].vendas) / HIST_DATA[HIST_DATA.length-1].vendas) : null;
+    histRows.push([
+      r.year === 2026 ? '2026 (atual)' : r.year,
+      r.vendas,
+      r.receita != null ? +r.receita.toFixed(2) : null,
+      r.midia != null   ? +r.midia.toFixed(2) : '—',
+      r.total != null   ? +r.total.toFixed(2)  : null,
+      '',
+      r.comissao != null ? +r.comissao.toFixed(2) : '—',
+      r.midiaRir != null ? +r.midiaRir.toFixed(2) : '—',
+      r.terreno  != null ? +r.terreno.toFixed(2)  : '—',
+      r.totalRir != null ? +r.totalRir.toFixed(2) : '—'
+    ]);
+  }
+  // Growth rows
+  histRows.push([]);
+  histRows.push(['Crescimento vs. 2024', '', '', '', '', '', '', '', '', '']);
+  for (const r of allEditions) {
+    const base = HIST_DATA[HIST_DATA.length - 1]; // 2024
+    if (r.year === base.year) continue;
+    const pctV = ((r.vendas - base.vendas) / base.vendas * 100).toFixed(1) + '%';
+    const pctR = r.receita ? ((r.receita - base.receita) / base.receita * 100).toFixed(1) + '%' : '—';
+    histRows.push([r.year === 2026 ? '2026 (atual)' : r.year, pctV, pctR]);
+  }
+
+  const ws2 = XLSX.utils.aoa_to_sheet(histRows);
+  ws2['!cols'] = [{wch:16},{wch:10},{wch:18},{wch:14},{wch:26},{wch:4},{wch:18},{wch:16},{wch:16},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Comparativo Histórico');
+
+  // ── Sheet 3: Progresso vs Histórico ─────────────────────
+  const progRows = [
+    ['Ano de Referência', 'Total de Vendas Históricas', 'Vendas 2026 até agora',
+     '% Atingido', 'Faltam (ingressos)', 'Receita Histórica (R$)', 'Receita 2026 até agora (R$)', '% Receita Atingida']
+  ];
+  const atual2026 = _data.totalSold    || 0;
+  const rev2026   = _data.totalRevenue || 0;
+  for (const r of HIST_DATA) {
+    progRows.push([
+      r.year,
+      r.vendas,
+      atual2026,
+      +(atual2026 / r.vendas * 100).toFixed(1) + '%',
+      r.vendas - atual2026,
+      +r.receita.toFixed(2),
+      +rev2026.toFixed(2),
+      +(rev2026 / r.receita * 100).toFixed(1) + '%'
+    ]);
+  }
+  const ws3 = XLSX.utils.aoa_to_sheet(progRows);
+  ws3['!cols'] = [{wch:20},{wch:24},{wch:22},{wch:14},{wch:20},{wch:22},{wch:26},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Progresso vs Histórico');
+
+  // ── Sheet 4: Por Local de Venda ──────────────────────────
+  const localMap = {};
+  for (const s of _rawShows) {
+    const k = (s.eventName || s.local || '').replace('Primeira Classe Rock in Rio - ', '');
+    if (!localMap[k]) localMap[k] = { tks: 0, revenue: 0, cancelled: 0 };
+    localMap[k].tks      += s.tks;
+    localMap[k].revenue  += s.subtotal;
+    localMap[k].cancelled += (s.cancelled || 0);
+  }
+  const localRows = [['Local de Venda', 'Ingressos Vendidos', 'Cancelamentos', 'Líquido', 'Receita (R$)', '% do Total']];
+  const totalTks = _data.totalSold || 1;
+  Object.entries(localMap)
+    .sort((a,b) => b[1].tks - a[1].tks)
+    .forEach(([k, v]) => localRows.push([
+      k, v.tks, v.cancelled, v.tks - v.cancelled,
+      +v.revenue.toFixed(2),
+      +(v.tks / totalTks * 100).toFixed(1) + '%'
+    ]));
+  localRows.push(['TOTAL', totalTks, '', '', +rev2026.toFixed(2), '100%']);
+  const ws4 = XLSX.utils.aoa_to_sheet(localRows);
+  ws4['!cols'] = [{wch:40},{wch:20},{wch:16},{wch:12},{wch:18},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Por Local de Venda');
+
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `comparativo-rir-${today}.xlsx`);
 }
 
 // ═══════════════════════════════════════════════════════════
