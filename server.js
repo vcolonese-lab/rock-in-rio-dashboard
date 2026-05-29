@@ -14,9 +14,14 @@ const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toSt
 
 // Users who can view the dashboard: "user1:pass1,user2:pass2"
 const USERS = Object.fromEntries(
-  (process.env.USERS || 'vinicius:senha123')
+  (process.env.USERS || 'vinicius:RiR2026!')
     .split(',')
-    .map(pair => pair.trim().split(':'))
+    .map(pair => {
+      const idx = pair.trim().indexOf(':');
+      if (idx < 0) return null;
+      return [pair.trim().substring(0, idx), pair.trim().substring(idx + 1)];
+    })
+    .filter(Boolean)
 );
 
 // ─────────────────────────────────────────────
@@ -246,6 +251,11 @@ function requireAuth(req, res, next) {
   if (req.session.user) return next();
   res.redirect('/login');
 }
+
+// ── Public: list loaded usernames (no passwords exposed) ────
+app.get('/health/users', (req, res) => {
+  res.json({ users: Object.keys(USERS), count: Object.keys(USERS).length });
+});
 
 // ── Public health check (no auth) ───────────
 app.get('/health', (req, res) => {
