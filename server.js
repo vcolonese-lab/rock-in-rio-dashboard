@@ -227,6 +227,19 @@ function requireAuth(req, res, next) {
   res.redirect('/login');
 }
 
+// ── Public health check (no auth) ───────────
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    lastRefresh: state.lastRefresh,
+    refreshing: state.refreshing,
+    error: state.error,
+    totalSold: state.data?.totalSold ?? null,
+    totalRevenue: state.data?.totalRevenue ?? null,
+    showCount: state.data?.rawShows?.length ?? null
+  });
+});
+
 // ── Login page ──────────────────────────────
 app.get('/login', (req, res) => {
   res.send(`<!DOCTYPE html>
