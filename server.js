@@ -1030,7 +1030,7 @@ function getEventosHTML(username) {
     'Primeira Classe - Sexta 2': 500,
     'Primeira Classe - Sábado 2': 500,
   };
-  const DEFAULT_CAP = 500; // capacidade padrão por produto quando não especificada
+  const DEFAULT_CAP = 46; // capacidade padrão por produto/horário
 
   const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
                           '2026-09-11','2026-09-12','2026-09-13'];
@@ -1139,7 +1139,7 @@ ${SHARED_HEADER_CSS}
 </div>
 
 <script>
-const DEFAULT_CAP = ${DEFAULT_CAP};
+const DEFAULT_CAP = 46;
 const CAPS = ${JSON.stringify(CAPACIDADES)};
 
 const FESTIVAL_DATES = ${JSON.stringify(FESTIVAL_DATES)};
