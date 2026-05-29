@@ -240,6 +240,21 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ── Public debug: list unique events (no auth) ─
+app.get('/health/events', (req, res) => {
+  if (!state.data) return res.json({ ok: false, message: 'Sem dados ainda' });
+  // Summarize unique events from rawShows
+  const evMap = {};
+  for (const s of state.data.rawShows) {
+    const k = s.eventId || s.eventName || s.local;
+    if (!evMap[k]) evMap[k] = { eventId: s.eventId, eventName: s.eventName, tks: 0, revenue: 0, shows: 0 };
+    evMap[k].tks     += s.tks;
+    evMap[k].revenue += s.subtotal;
+    evMap[k].shows++;
+  }
+  res.json(Object.values(evMap).sort((a,b) => b.tks - a.tks));
+});
+
 // ── Login page ──────────────────────────────
 app.get('/login', (req, res) => {
   res.send(`<!DOCTYPE html>
