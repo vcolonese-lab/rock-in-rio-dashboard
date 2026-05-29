@@ -385,6 +385,87 @@ app.get('/', requireAuth, (req, res) => {
   res.send(getDashboardHTML(req.session.user));
 });
 
+// ── Sub-page: Tempo de Vendas ─────────────────
+app.get('/tempo', requireAuth, (req, res) => {
+  res.send(getTempoHTML(req.session.user));
+});
+
+// ── Sub-page: Produtos & Setores ─────────────
+app.get('/perfil', requireAuth, (req, res) => {
+  res.send(getPerfilHTML(req.session.user));
+});
+
+// ─────────────────────────────────────────────
+// SHARED CSS VARIABLES (dark theme)
+// ─────────────────────────────────────────────
+const SHARED_CSS_VARS = `
+  :root {
+    --bg:#0a0c10;--surface:#131720;--surface2:#1c2232;--border:#252d3d;
+    --accent:#e63946;--accent2:#f4a261;--gold:#ffd700;--text:#e8eaf0;
+    --muted:#7a8499;--green:#2ec27e;--blue:#5b8dee;--purple:#9b59b6;--teal:#1abc9c;
+    --orange:#e8871a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
+`;
+
+const SHARED_HEADER_CSS = `
+  header{background:linear-gradient(135deg,#0d1117 0%,#1a0a0f 50%,#0d1117 100%);
+    border-bottom:1px solid var(--border);padding:18px 32px;
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .header-left{display:flex;align-items:center;gap:16px}
+  .logo-badge{background:var(--accent);color:#fff;font-weight:800;font-size:11px;
+    letter-spacing:2px;text-transform:uppercase;padding:6px 12px;border-radius:4px}
+  header h1{font-size:18px;font-weight:700}
+  header p{font-size:12px;color:var(--muted);margin-top:2px}
+  .header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .btn{border:none;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;
+    cursor:pointer;display:flex;align-items:center;gap:6px;transition:.2s;text-decoration:none}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#c62d3a;transform:translateY(-1px)}
+  .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+  .btn-secondary:hover{background:var(--border)}
+  .btn-back{background:var(--surface2);color:var(--muted);border:1px solid var(--border);font-size:12px}
+  .btn-back:hover{color:var(--text);background:var(--border)}
+  .btn svg{width:14px;height:14px}
+  #status-bar{background:var(--surface);border-bottom:1px solid var(--border);
+    padding:7px 32px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px}
+  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
+  .status-dot.green{background:var(--green)}
+  .status-dot.yellow{background:var(--gold);animation:pulse 1.5s infinite}
+  .status-dot.red{background:var(--accent)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  #status-text{color:var(--muted)}
+  #loading{position:fixed;inset:0;background:rgba(10,12,16,.88);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;z-index:9999;font-size:14px;color:var(--muted)}
+  #loading.hidden{display:none}
+  .spinner{width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .section-heading{padding:24px 32px 0;display:flex;align-items:center;gap:12px}
+  .section-heading h2{font-size:16px;font-weight:700}
+  .section-divider{flex:1;height:1px;background:var(--border)}
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;padding:16px 32px 0}
+  .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden}
+  .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
+  .kpi-card.red::before{background:var(--accent)} .kpi-card.gold::before{background:var(--gold)}
+  .kpi-card.blue::before{background:var(--blue)}  .kpi-card.green::before{background:var(--green)}
+  .kpi-card.purple::before{background:var(--purple)} .kpi-card.teal::before{background:var(--teal)}
+  .kpi-label{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .kpi-value{font-size:24px;font-weight:800;line-height:1}
+  .kpi-sub{font-size:11px;color:var(--muted);margin-top:5px}
+  .main-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 32px}
+  .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;overflow:hidden}
+  .chart-card.full{grid-column:1/-1}
+  .chart-title{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+  .chart-subtitle{font-size:15px;font-weight:700;margin-bottom:14px}
+  @media(max-width:768px){
+    header,.kpi-grid,.main-grid,.section-heading{padding-left:16px;padding-right:16px}
+    .main-grid{grid-template-columns:1fr} .chart-card.full{grid-column:1}
+    #status-bar{padding-left:16px;padding-right:16px}
+  }
+`;
+
 // ─────────────────────────────────────────────
 // DASHBOARD HTML
 // ─────────────────────────────────────────────
@@ -398,66 +479,14 @@ function getDashboardHTML(username) {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
+${SHARED_CSS_VARS}
+${SHARED_HEADER_CSS}
   :root {
     --bg:#0a0c10;--surface:#131720;--surface2:#1c2232;--border:#252d3d;
     --accent:#e63946;--accent2:#f4a261;--gold:#ffd700;--text:#e8eaf0;
     --muted:#7a8499;--green:#2ec27e;--blue:#5b8dee;--purple:#9b59b6;--teal:#1abc9c;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
-
-  /* ── HEADER ── */
-  header{background:linear-gradient(135deg,#0d1117 0%,#1a0a0f 50%,#0d1117 100%);
-    border-bottom:1px solid var(--border);padding:20px 40px;
-    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-  .header-left{display:flex;align-items:center;gap:16px}
-  .logo-badge{background:var(--accent);color:#fff;font-weight:800;font-size:11px;
-    letter-spacing:2px;text-transform:uppercase;padding:6px 12px;border-radius:4px}
-  header h1{font-size:20px;font-weight:700}
-  header p{font-size:12px;color:var(--muted);margin-top:2px}
-  .header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .btn{border:none;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;
-    cursor:pointer;display:flex;align-items:center;gap:6px;transition:.2s}
-  .btn-primary{background:var(--accent);color:#fff}
-  .btn-primary:hover{background:#c62d3a;transform:translateY(-1px)}
-  .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
-  .btn-secondary:hover{background:var(--border)}
-  .btn svg{width:14px;height:14px}
-
-  /* ── STATUS BAR ── */
-  #status-bar{background:var(--surface);border-bottom:1px solid var(--border);
-    padding:8px 40px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:12px}
-  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
-  .status-dot.green{background:var(--green)}
-  .status-dot.yellow{background:var(--gold);animation:pulse 1.5s infinite}
-  .status-dot.red{background:var(--accent)}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  #status-text{color:var(--muted)}
-
-
-  /* ── SECTION HEADINGS ── */
-  .section-heading{padding:28px 40px 0;display:flex;align-items:center;gap:12px}
-  .section-heading h2{font-size:17px;font-weight:700}
-  .section-divider{flex:1;height:1px;background:var(--border)}
-
-  /* ── KPI CARDS ── */
-  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;padding:20px 40px 0}
-  .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden}
-  .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
-  .kpi-card.red::before{background:var(--accent)} .kpi-card.gold::before{background:var(--gold)}
-  .kpi-card.blue::before{background:var(--blue)}  .kpi-card.green::before{background:var(--green)}
-  .kpi-card.purple::before{background:var(--purple)} .kpi-card.teal::before{background:var(--teal)}
-  .kpi-label{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
-  .kpi-value{font-size:26px;font-weight:800;line-height:1}
-  .kpi-sub{font-size:11px;color:var(--muted);margin-top:5px}
-
-  /* ── CHARTS ── */
-  .main-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px 40px}
-  .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;overflow:hidden}
-  .chart-card.full{grid-column:1/-1}
-  .chart-title{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
-  .chart-subtitle{font-size:16px;font-weight:700;margin-bottom:16px}
-
   /* ── HEATMAP ── */
   .heatmap-wrap{overflow-x:auto}
   .heatmap-table{border-collapse:collapse;min-width:100%}
@@ -466,9 +495,8 @@ function getDashboardHTML(username) {
   .heatmap-table td{padding:5px 8px;font-size:11px;text-align:center;border:1px solid var(--border)}
   .heatmap-table td.event-name{text-align:left;font-weight:600;white-space:nowrap;background:var(--surface2)}
   .hm-cell{border-radius:4px;padding:3px 8px;font-weight:700;font-size:11px;display:inline-block;min-width:30px}
-
   /* ── EVENTS TABLE ── */
-  .table-section{padding:0 40px 40px}
+  .table-section{padding:0 32px 40px}
   .table-controls{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap}
   .search-input{background:var(--surface);border:1px solid var(--border);border-radius:8px;
     padding:9px 14px;color:var(--text);font-size:13px;outline:none;flex:1;min-width:200px;transition:.2s}
@@ -481,15 +509,6 @@ function getDashboardHTML(username) {
   .events-table tr:hover td{background:var(--surface2)}
   .badge-sold{background:#1a2a1a;color:var(--green);font-size:11px;font-weight:700;
     padding:3px 8px;border-radius:4px;display:inline-block}
-
-  /* ── LOADING OVERLAY ── */
-  #loading{position:fixed;inset:0;background:rgba(10,12,16,.85);display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:16px;z-index:9999;font-size:14px;color:var(--muted)}
-  #loading.hidden{display:none}
-  .spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);
-    border-radius:50%;animation:spin .8s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
-
   /* ── MODAL HISTÓRICO ── */
   .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
   .modal-overlay.hidden{display:none}
@@ -508,10 +527,9 @@ function getDashboardHTML(username) {
   .growth-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;display:inline-block}
   .growth-pos{background:#1a2a1a;color:var(--green)}
   .growth-neg{background:#2a1a1a;color:var(--accent)}
-
   /* ── PROJEÇÃO ── */
-  .proj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;padding:20px 40px 0}
-  .proj-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden}
+  .proj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;padding:16px 32px 0}
+  .proj-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden}
   .proj-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
   .proj-card.conservador::before{background:#5b8dee}
   .proj-card.tendencia::before{background:#2ec27e}
@@ -526,13 +544,12 @@ function getDashboardHTML(username) {
   .proj-scenario.otimista{background:#2a2a0d;color:#ffd700}
   .progress-wrap{background:var(--surface2);border-radius:6px;height:10px;overflow:hidden;margin-top:8px}
   .progress-fill{height:100%;border-radius:6px;transition:width .6s ease}
-  .proj-settings{display:flex;align-items:center;gap:12px;padding:12px 40px 0;flex-wrap:wrap}
+  .proj-settings{display:flex;align-items:center;gap:12px;padding:10px 32px 0;flex-wrap:wrap}
   .proj-input{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text);font-size:13px;width:80px;text-align:center;outline:none}
   .proj-input:focus{border-color:var(--accent)}
   .proj-input-label{font-size:12px;color:var(--muted)}
-
   /* ── RANKING ── */
-  .ranking-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px 40px}
+  .ranking-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 32px}
   .rank-table{width:100%;border-collapse:collapse}
   .rank-table tr{border-bottom:1px solid var(--border)}
   .rank-table tr:last-child{border-bottom:none}
@@ -547,9 +564,17 @@ function getDashboardHTML(username) {
   .rank-bar-blue{background:var(--blue)}
   .rank-val{padding:8px 6px;font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;text-align:right;min-width:44px}
   .rank-sub{font-size:10px;color:var(--muted)}
-
+  /* ── NAV CARDS ── */
+  .nav-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:20px 32px 0}
+  .nav-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;
+    text-decoration:none;color:var(--text);display:flex;align-items:center;gap:16px;transition:.2s;cursor:pointer}
+  .nav-card:hover{border-color:var(--accent);background:var(--surface2);transform:translateY(-2px)}
+  .nav-card-icon{font-size:28px;flex-shrink:0}
+  .nav-card-title{font-size:14px;font-weight:700;margin-bottom:3px}
+  .nav-card-desc{font-size:12px;color:var(--muted)}
+  .nav-card-arrow{margin-left:auto;color:var(--muted);font-size:18px}
   @media(max-width:768px){
-    header,.kpi-grid,.main-grid,.table-section,.section-heading,.ranking-grid{padding-left:16px;padding-right:16px}
+    header,.kpi-grid,.main-grid,.table-section,.section-heading,.ranking-grid,.nav-cards,.proj-grid,.proj-settings{padding-left:16px;padding-right:16px}
     .main-grid{grid-template-columns:1fr} .chart-card.full{grid-column:1}
     .ranking-grid{grid-template-columns:1fr}
     #status-bar{padding-left:16px;padding-right:16px}
@@ -577,27 +602,11 @@ function getDashboardHTML(username) {
         <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
         <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
       </svg>
-      Atualizar Dados
+      Atualizar
     </button>
-    <button class="btn btn-secondary" onclick="openHistorico()" id="hist-btn" style="border-color:#ffd700;color:#ffd700">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-      </svg>
-      Comparativo Histórico
-    </button>
-    <button class="btn btn-primary" onclick="exportComparativo()" id="export-comp-btn" style="background:#2ec27e">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-      </svg>
-      Comparativo Dia a Dia
-    </button>
-    <button class="btn btn-primary" onclick="exportXLS()" id="export-btn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      Exportar XLS
-    </button>
+    <button class="btn btn-secondary" onclick="openHistorico()" id="hist-btn" style="border-color:#ffd700;color:#ffd700">📊 Histórico</button>
+    <button class="btn" onclick="exportComparativo()" id="export-comp-btn" style="background:#2ec27e;color:#fff">↓ Comparativo</button>
+    <button class="btn btn-primary" onclick="exportXLS()" id="export-btn">↓ XLS</button>
     <form method="POST" action="/logout" style="margin:0">
       <button class="btn btn-secondary" type="submit">Sair</button>
     </form>
@@ -607,6 +616,20 @@ function getDashboardHTML(username) {
 <div id="status-bar">
   <span class="status-dot" id="status-dot"></span>
   <span id="status-text">Conectando...</span>
+</div>
+
+<!-- NAV CARDS -->
+<div class="nav-cards">
+  <a href="/tempo" class="nav-card">
+    <div class="nav-card-icon">📅</div>
+    <div><div class="nav-card-title">Tempo de Vendas</div><div class="nav-card-desc">Análise por semana e dia da semana</div></div>
+    <div class="nav-card-arrow">›</div>
+  </a>
+  <a href="/perfil" class="nav-card">
+    <div class="nav-card-icon">🎟️</div>
+    <div><div class="nav-card-title">Produtos & Setores</div><div class="nav-card-desc">Breakdown por setor, produto e show</div></div>
+    <div class="nav-card-arrow">›</div>
+  </a>
 </div>
 
 <!-- MODAL COMPARATIVO HISTÓRICO -->
@@ -637,6 +660,349 @@ function getDashboardHTML(username) {
 <script src="/js/dashboard.js"></script>
 </body>
 </html>`;
+}
+
+// ─────────────────────────────────────────────
+// TEMPO DE VENDAS PAGE
+// ─────────────────────────────────────────────
+function getTempoHTML(username) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tempo de Vendas — Rock in Rio 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+${SHARED_CSS_VARS}
+${SHARED_HEADER_CSS}
+  .content{padding:20px 32px 40px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+  .kpi-icon{font-size:22px;margin-bottom:6px}
+  .kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px;font-weight:700}
+  .kpi-val{font-size:22px;font-weight:800;color:var(--orange)}
+  .kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+  .kpi.blue .kpi-val{color:var(--blue)}.kpi.green .kpi-val{color:var(--green)}.kpi.gold .kpi-val{color:var(--gold)}.kpi.pink .kpi-val{color:#FF6B9D}
+  .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px}
+  .section-title{font-size:13px;font-weight:700;color:var(--orange);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+  .charts-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+  .chart-wrap{position:relative;height:300px}
+  .chart-wrap-tall{position:relative;height:380px}
+  .table-scroll{max-height:400px;overflow-y:auto}
+  .rank-table{width:100%;border-collapse:collapse;font-size:13px}
+  .rank-table th{background:var(--surface2);color:var(--orange);padding:8px 12px;text-align:left;border-bottom:2px solid var(--border);font-size:11px;text-transform:uppercase}
+  .rank-table td{padding:7px 12px;border-bottom:1px solid var(--border)}
+  .rank-table tr:hover td{background:var(--surface2)}
+  .num{color:var(--orange);font-weight:700}
+  .bar-cell{display:flex;align-items:center;gap:6px}
+  .bar-inline{height:10px;border-radius:3px;background:var(--orange);min-width:2px}
+  @media(max-width:768px){.content{padding:16px}.charts-row,.charts-row-3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><span>Carregando dados...</span></div>
+<header>
+  <div class="header-left">
+    <a href="/" class="btn btn-back" style="text-decoration:none">← Voltar</a>
+    <div class="logo-badge">Rock in Rio 2026</div>
+    <div><h1>Tempo de Vendas</h1><p>Análise temporal das vendas de Primeira Classe</p></div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-secondary" onclick="loadData()">↻ Atualizar</button>
+    <form method="POST" action="/logout" style="margin:0"><button class="btn btn-secondary" type="submit">Sair</button></form>
+  </div>
+</header>
+<div id="status-bar"><span class="status-dot" id="status-dot"></span><span id="status-text">Conectando...</span></div>
+<div class="content">
+  <div class="kpis">
+    <div class="kpi gold"><div class="kpi-icon">📅</div><div class="kpi-label">Melhor Semana</div><div class="kpi-val" id="kpi-semana" style="font-size:14px">—</div><div class="kpi-sub" id="kpi-semana-n">—</div></div>
+    <div class="kpi blue"><div class="kpi-icon">📆</div><div class="kpi-label">Melhor Dia da Semana</div><div class="kpi-val" id="kpi-dia">—</div><div class="kpi-sub" id="kpi-dia-n">—</div></div>
+    <div class="kpi green"><div class="kpi-icon">🎫</div><div class="kpi-label">Total Ingressos</div><div class="kpi-val" id="kpi-total">—</div><div class="kpi-sub">registros</div></div>
+    <div class="kpi pink"><div class="kpi-icon">⏳</div><div class="kpi-label">Dias até o Festival</div><div class="kpi-val" id="kpi-dias">—</div><div class="kpi-sub">até 04/09/2026</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📅 Vendas por Semana</div>
+    <div class="chart-wrap-tall"><canvas id="chart-semanas"></canvas></div>
+  </div>
+
+  <div class="charts-row">
+    <div class="section">
+      <div class="section-title">📆 Vendas por Dia da Semana</div>
+      <div class="chart-wrap"><canvas id="chart-diasemana"></canvas></div>
+    </div>
+    <div class="section">
+      <div class="section-title">📈 Acumulado de Vendas</div>
+      <div class="chart-wrap"><canvas id="chart-acumulado"></canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-row-3">
+    <div class="section">
+      <div class="section-title">🏆 Top Semanas</div>
+      <div class="table-scroll"><table class="rank-table" id="tbl-semanas"><thead><tr><th>#</th><th>Semana</th><th>Ingressos</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="section">
+      <div class="section-title">🏆 Top Dias da Semana</div>
+      <div class="table-scroll"><table class="rank-table" id="tbl-dias"><thead><tr><th>#</th><th>Dia</th><th>Ingressos</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="section">
+      <div class="section-title">📅 Últimos 10 Dias</div>
+      <div class="table-scroll"><table class="rank-table" id="tbl-recent"><thead><tr><th>Data</th><th>Ingressos</th><th>Receita</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+</div>
+<script>
+const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+const DIAS_C = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const fmt = n => Number(n||0).toLocaleString('pt-BR');
+const fmtR = n => 'R$ ' + Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+let charts = {};
+function mk(id, cfg){ if(charts[id])charts[id].destroy(); const c=document.getElementById(id); if(c)charts[id]=new Chart(c,cfg); }
+
+function render(salesByDate) {
+  const FESTIVAL = new Date('2026-09-04');
+  // Sort by date
+  const rows = [...salesByDate].sort((a,b)=>a.date.localeCompare(b.date)).filter(r=>r.tks>0);
+  const total = rows.reduce((s,r)=>s+r.tks,0);
+  const diasRestantes = Math.max(0, Math.ceil((FESTIVAL - new Date()) / 86400000));
+  document.getElementById('kpi-total').textContent = fmt(total);
+  document.getElementById('kpi-dias').textContent = diasRestantes;
+
+  // Group by week
+  const semMap = {};
+  const diaMap = {}; DIAS.forEach(d=>diaMap[d]=0);
+  rows.forEach(r => {
+    const d = new Date(r.date+'T12:00:00');
+    // week key: Monday of that week
+    const dow = d.getDay();
+    const diff = dow===0 ? -6 : 1-dow;
+    const mon = new Date(d); mon.setDate(d.getDate()+diff);
+    const key = mon.toISOString().substring(0,10);
+    semMap[key] = (semMap[key]||0) + r.tks;
+    diaMap[DIAS[d.getDay()]] += r.tks;
+  });
+
+  const semEntries = Object.entries(semMap).sort((a,b)=>a[0].localeCompare(b[0]));
+  const semLabels = semEntries.map(([k])=>{const d=new Date(k+'T12:00:00');return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});});
+  const semVals = semEntries.map(([,v])=>v);
+  const maxSem = Math.max(...semVals,1);
+
+  // KPIs
+  const bestSem = semEntries.sort((a,b)=>b[1]-a[1])[0];
+  if(bestSem){ document.getElementById('kpi-semana').textContent = new Date(bestSem[0]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}); document.getElementById('kpi-semana-n').textContent = fmt(bestSem[1])+' ingressos'; }
+  const bestDia = Object.entries(diaMap).sort((a,b)=>b[1]-a[1])[0];
+  if(bestDia){ document.getElementById('kpi-dia').textContent = bestDia[0]; document.getElementById('kpi-dia-n').textContent = fmt(bestDia[1])+' ingressos'; }
+
+  // Re-sort semEntries for chart
+  const semSorted = Object.entries(semMap).sort((a,b)=>a[0].localeCompare(b[0]));
+  const sLabels = semSorted.map(([k])=>{const d=new Date(k+'T12:00:00');return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});});
+  const sVals = semSorted.map(([,v])=>v);
+  const maxS = Math.max(...sVals,1);
+  const axisOpts = (color)=>({color:color||'#7a8499',grid:{color:'#252d3d'}});
+  mk('chart-semanas',{type:'bar',data:{labels:sLabels,datasets:[{label:'Ingressos',data:sVals,backgroundColor:sVals.map(v=>v===maxS?'#ffd700':'#e8871a'),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}},scales:{x:{ticks:axisOpts(),grid:{color:'#252d3d'}},y:{ticks:{...axisOpts(),callback:v=>fmt(v)},grid:{color:'#252d3d'}}}}});
+
+  const dVals = DIAS.map(d=>diaMap[d]||0);
+  const maxD = Math.max(...dVals,1);
+  mk('chart-diasemana',{type:'bar',data:{labels:DIAS_C,datasets:[{label:'Ingressos',data:dVals,backgroundColor:dVals.map(v=>v===maxD?'#ffd700':'#5b8dee'),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:axisOpts(),grid:{color:'#252d3d'}},y:{ticks:{...axisOpts(),callback:v=>fmt(v)},grid:{color:'#252d3d'}}}}});
+
+  // Cumulative
+  let cum=0;
+  const cumLabels=[], cumVals=[];
+  rows.forEach(r=>{cum+=r.tks; cumLabels.push(r.date.substring(5)); cumVals.push(cum);});
+  mk('chart-acumulado',{type:'line',data:{labels:cumLabels,datasets:[{label:'Acumulado',data:cumVals,borderColor:'#2ec27e',backgroundColor:'rgba(46,194,126,.15)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#2ec27e'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{...axisOpts(),maxTicksLimit:8},grid:{color:'#252d3d'}},y:{ticks:{...axisOpts(),callback:v=>fmt(v)},grid:{color:'#252d3d'}}}}});
+
+  // Rankings
+  const rankSem = Object.entries(semMap).sort((a,b)=>b[1]-a[1]);
+  document.querySelector('#tbl-semanas tbody').innerHTML = rankSem.slice(0,10).map(([k,n],i)=>
+    \`<tr><td style="color:var(--muted)">\${i+1}</td><td style="font-size:12px">\${new Date(k+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})}</td><td class="num">\${fmt(n)}</td></tr>\`).join('');
+  const rankDias = DIAS.map(d=>[d,diaMap[d]||0]).sort((a,b)=>b[1]-a[1]);
+  document.querySelector('#tbl-dias tbody').innerHTML = rankDias.map(([d,n],i)=>
+    \`<tr><td style="color:var(--muted)">\${i+1}</td><td>\${d}</td><td class="num">\${fmt(n)}</td></tr>\`).join('');
+  document.querySelector('#tbl-recent tbody').innerHTML = [...rows].slice(-10).reverse().map(r=>
+    \`<tr><td style="font-size:12px">\${r.date}</td><td class="num">\${fmt(r.tks)}</td><td style="color:var(--muted);font-size:12px">\${fmtR(r.revenue)}</td></tr>\`).join('');
+}
+
+async function loadData() {
+  try {
+    const res = await fetch('/api/data');
+    const json = await res.json();
+    const d = json.data;
+    if(!d) throw new Error('Sem dados');
+    render(d.salesByDate||[]);
+    const dot = document.getElementById('status-dot'); dot.className='status-dot green';
+    document.getElementById('status-text').textContent = 'Dados ao vivo · Atualizado: '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'—');
+    document.getElementById('loading').classList.add('hidden');
+  } catch(e) {
+    document.getElementById('status-dot').className='status-dot red';
+    document.getElementById('status-text').textContent='Erro: '+e.message;
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+</body></html>`;
+}
+
+// ─────────────────────────────────────────────
+// PRODUTOS & SETORES PAGE
+// ─────────────────────────────────────────────
+function getPerfilHTML(username) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Produtos & Setores — Rock in Rio 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+${SHARED_CSS_VARS}
+${SHARED_HEADER_CSS}
+  .content{padding:20px 32px 40px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+  .kpi-icon{font-size:22px;margin-bottom:6px}
+  .kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px;font-weight:700}
+  .kpi-val{font-size:22px;font-weight:800;color:var(--accent)}
+  .kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+  .kpi.blue .kpi-val{color:var(--blue)}.kpi.green .kpi-val{color:var(--green)}.kpi.gold .kpi-val{color:var(--gold)}
+  .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px}
+  .section-title{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+  .charts-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+  .chart-wrap{position:relative;height:300px}
+  .chart-wrap-sm{position:relative;height:240px}
+  .chart-wrap-tall{position:relative;height:380px}
+  .table-scroll{max-height:380px;overflow-y:auto}
+  .data-table{width:100%;border-collapse:collapse;font-size:13px}
+  .data-table th{background:var(--surface2);padding:9px 12px;text-align:left;border-bottom:2px solid var(--border);font-size:11px;text-transform:uppercase;color:var(--muted)}
+  .data-table td{padding:8px 12px;border-bottom:1px solid var(--border)}
+  .data-table tr:hover td{background:var(--surface2)}
+  .num{color:var(--green);font-weight:700}
+  .rev{color:var(--muted);font-size:12px}
+  @media(max-width:768px){.content{padding:16px}.charts-row,.charts-row-3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><span>Carregando dados...</span></div>
+<header>
+  <div class="header-left">
+    <a href="/" class="btn btn-back" style="text-decoration:none">← Voltar</a>
+    <div class="logo-badge">Rock in Rio 2026</div>
+    <div><h1>Produtos & Setores</h1><p>Breakdown de vendas por setor, produto e data do show</p></div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-secondary" onclick="loadData()">↻ Atualizar</button>
+    <form method="POST" action="/logout" style="margin:0"><button class="btn btn-secondary" type="submit">Sair</button></form>
+  </div>
+</header>
+<div id="status-bar"><span class="status-dot" id="status-dot"></span><span id="status-text">Conectando...</span></div>
+<div class="content">
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-icon">🎫</div><div class="kpi-label">Total Vendido</div><div class="kpi-val" id="kpi-total">—</div><div class="kpi-sub">ingressos</div></div>
+    <div class="kpi green"><div class="kpi-icon">💰</div><div class="kpi-label">Receita Total</div><div class="kpi-val" id="kpi-receita" style="font-size:16px">—</div></div>
+    <div class="kpi gold"><div class="kpi-icon">🏆</div><div class="kpi-label">Top Setor</div><div class="kpi-val" id="kpi-top-setor" style="font-size:15px">—</div><div class="kpi-sub" id="kpi-top-setor-n">—</div></div>
+    <div class="kpi blue"><div class="kpi-icon">🎪</div><div class="kpi-label">Top Show</div><div class="kpi-val" id="kpi-top-show" style="font-size:13px">—</div><div class="kpi-sub" id="kpi-top-show-n">—</div></div>
+  </div>
+
+  <div class="charts-row">
+    <div class="section">
+      <div class="section-title">🎪 Ingressos por Show / Data</div>
+      <div class="chart-wrap-tall"><canvas id="chart-shows"></canvas></div>
+    </div>
+    <div class="section">
+      <div class="section-title">🎟️ Ingressos por Setor</div>
+      <div class="chart-wrap-tall"><canvas id="chart-setores"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📦 Top Produtos</div>
+    <div class="chart-wrap" style="height:260px"><canvas id="chart-produtos"></canvas></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📋 Detalhamento por Produto</div>
+    <div class="table-scroll">
+      <table class="data-table" id="tbl-produtos">
+        <thead><tr><th>#</th><th>Produto / Setor</th><th>Show</th><th>Ingressos</th><th>Receita</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+const fmt = n => Number(n||0).toLocaleString('pt-BR');
+const fmtR = n => 'R$ '+Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+let charts = {};
+function mk(id,cfg){if(charts[id])charts[id].destroy();const c=document.getElementById(id);if(c)charts[id]=new Chart(c,cfg);}
+const PALETTE = ['#e63946','#5b8dee','#2ec27e','#ffd700','#f4a261','#9b59b6','#1abc9c','#e67e22','#3498db','#e74c3c','#2ecc71','#f39c12'];
+
+function render(rawShows) {
+  const shows = rawShows.filter(s=>s.tks>0);
+  const totalTks = shows.reduce((s,r)=>s+r.tks,0);
+  const totalRev = shows.reduce((s,r)=>s+(r.subtotal||0),0);
+  document.getElementById('kpi-total').textContent = fmt(totalTks);
+  document.getElementById('kpi-receita').textContent = fmtR(totalRev);
+
+  // By show/date
+  const showMap = {};
+  shows.forEach(s=>{
+    const k = (s.showName||s.local||'Outro')+' ('+( s.date||'?')+')';
+    if(!showMap[k])showMap[k]={tks:0,rev:0};
+    showMap[k].tks+=s.tks; showMap[k].rev+=(s.subtotal||0);
+  });
+  const showEntries = Object.entries(showMap).sort((a,b)=>b[1].tks-a[1].tks);
+  const topShow = showEntries[0];
+  if(topShow){document.getElementById('kpi-top-show').textContent=topShow[0].substring(0,22);document.getElementById('kpi-top-show-n').textContent=fmt(topShow[1].tks)+' ing.';}
+
+  const showLabels = showEntries.slice(0,12).map(([k])=>k.length>28?k.substring(0,28)+'…':k);
+  const showVals = showEntries.slice(0,12).map(([,v])=>v.tks);
+  mk('chart-shows',{type:'bar',data:{labels:showLabels,datasets:[{data:showVals,backgroundColor:PALETTE,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}},scales:{x:{ticks:{color:'#7a8499',callback:v=>fmt(v)},grid:{color:'#252d3d'}},y:{ticks:{color:'#e8eaf0',font:{size:11}},grid:{color:'#252d3d'}}}}});
+
+  // By setor
+  const setorMap = {};
+  shows.forEach(s=>{const k=s.sectorName||s.productName||'Outro';if(!setorMap[k])setorMap[k]=0;setorMap[k]+=s.tks;});
+  const setorEntries = Object.entries(setorMap).sort((a,b)=>b[1]-a[1]);
+  const topSetor = setorEntries[0];
+  if(topSetor){document.getElementById('kpi-top-setor').textContent=topSetor[0].substring(0,18);document.getElementById('kpi-top-setor-n').textContent=fmt(topSetor[1])+' ingressos';}
+  mk('chart-setores',{type:'doughnut',data:{labels:setorEntries.map(([k])=>k.length>22?k.substring(0,22)+'…':k),datasets:[{data:setorEntries.map(([,v])=>v),backgroundColor:PALETTE,borderWidth:2,borderColor:'#131720'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#e8eaf0',font:{size:11},boxWidth:14}},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}}}});
+
+  // By product
+  const prodMap = {};
+  shows.forEach(s=>{const k=s.productName||s.sectorName||'Outro';if(!prodMap[k])prodMap[k]={tks:0,rev:0};prodMap[k].tks+=s.tks;prodMap[k].rev+=(s.subtotal||0);});
+  const prodEntries = Object.entries(prodMap).sort((a,b)=>b[1].tks-a[1].tks);
+  const pLabels = prodEntries.slice(0,10).map(([k])=>k.length>30?k.substring(0,30)+'…':k);
+  const pVals = prodEntries.slice(0,10).map(([,v])=>v.tks);
+  const maxP = Math.max(...pVals,1);
+  mk('chart-produtos',{type:'bar',data:{labels:pLabels,datasets:[{data:pVals,backgroundColor:pVals.map(v=>v===maxP?'#ffd700':'#5b8dee'),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}},scales:{x:{ticks:{color:'#7a8499',font:{size:10},maxRotation:30},grid:{color:'#252d3d'}},y:{ticks:{color:'#7a8499',callback:v=>fmt(v)},grid:{color:'#252d3d'}}}}});
+
+  // Table
+  document.querySelector('#tbl-produtos tbody').innerHTML = shows
+    .sort((a,b)=>b.tks-a.tks)
+    .map((s,i)=>\`<tr><td style="color:var(--muted)">\${i+1}</td><td style="font-weight:600">\${(s.productName||s.sectorName||'—').substring(0,30)}</td><td style="color:var(--muted);font-size:12px">\${(s.showName||s.local||'—').substring(0,25)}</td><td class="num">\${fmt(s.tks)}</td><td class="rev">\${fmtR(s.subtotal||0)}</td></tr>\`)
+    .join('');
+}
+
+async function loadData() {
+  try {
+    const res = await fetch('/api/data');
+    const json = await res.json();
+    const d = json.data;
+    if(!d) throw new Error('Sem dados');
+    render(d.rawShows||[]);
+    document.getElementById('status-dot').className='status-dot green';
+    document.getElementById('status-text').textContent='Dados ao vivo · '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'—');
+    document.getElementById('loading').classList.add('hidden');
+  } catch(e) {
+    document.getElementById('status-dot').className='status-dot red';
+    document.getElementById('status-text').textContent='Erro: '+e.message;
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+</body></html>`;
 }
 
 // ─────────────────────────────────────────────
