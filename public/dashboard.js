@@ -37,10 +37,10 @@ async function loadData() {
     } else if (json.error) {
       showError(json.error);
     } else if (json.refreshing) {
-      document.querySelector('#loading span').textContent = 'Buscando dados da Ticketmaster...';
+      document.querySelector('#loading span').textContent = 'Buscando dados...';
       setTimeout(loadData, 3000);
     } else {
-      showError('Nenhum dado disponível. Sincronize o token usando o bookmarklet.');
+      showError('Nenhum dado disponível. Aguarde a atualização automática.');
     }
   } catch(e) {
     showError('Erro ao carregar dados: ' + e.message);
@@ -50,7 +50,6 @@ async function loadData() {
 function updateStatusBar(json) {
   const dot  = document.getElementById('status-dot');
   const text = document.getElementById('status-text');
-  const warn = document.getElementById('token-warning');
 
   if (json.refreshing) {
     dot.className  = 'status-dot yellow';
@@ -63,11 +62,6 @@ function updateStatusBar(json) {
     dot.className  = 'status-dot red';
     text.textContent = json.error;
   }
-
-  if (json.tokenExpiry) {
-    const expiresIn = new Date(json.tokenExpiry) - Date.now();
-    warn.style.display = expiresIn < 2 * 60 * 60 * 1000 ? 'inline' : 'none';
-  }
 }
 
 function showError(msg) {
@@ -78,7 +72,7 @@ function showError(msg) {
       <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px">Dados não disponíveis</div>
       <div style="font-size:13px">${msg}</div>
       <div style="margin-top:24px;font-size:12px;color:#5a6475">
-        Para atualizar: abra o painel da Ticketmaster e clique no bookmarklet "Sync RiR Dashboard"
+        Os dados são atualizados automaticamente a cada 5 minutos via API.
       </div>
     </div>`;
 }
