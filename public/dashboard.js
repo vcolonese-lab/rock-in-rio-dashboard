@@ -103,7 +103,8 @@ function renderAll() {
   const totalTax       = _rawShows.reduce((s, r) => s + (r.taxa || 0), 0);
   const totalTickets   = events.reduce((s, e) => s + e.sold, 0);
   const totalEvents    = events.filter(e => e.sold > 0).length;
-  const totalPurchases = events.reduce((s, e) => s + e.purchases, 0);
+  const totalSalesDays = (_data.byDate || []).filter(d => d.tks > 0).length;
+  const ticketMedio    = totalTickets > 0 ? totalRevenue / totalTickets : 0;
   const totalRes       = events.reduce((s, e) => s + (e.reserved || 0), 0);
   const totalCan       = events.reduce((s, e) => s + (e.cancelled || 0), 0);
 
@@ -120,12 +121,12 @@ function renderAll() {
       <div class="kpi-card blue"><div class="kpi-label">Total c/ Taxas</div>
         <div class="kpi-value">${fmtR(totalRevenue + totalTax)}</div>
         <div class="kpi-sub">receita bruta total</div></div>
-      <div class="kpi-card green"><div class="kpi-label">Compras Realizadas</div>
-        <div class="kpi-value">${fmt(totalPurchases)}</div>
-        <div class="kpi-sub">pedidos únicos</div></div>
-      <div class="kpi-card teal"><div class="kpi-label">Ticket Médio / Pedido</div>
-        <div class="kpi-value">${fmtR(totalPurchases ? totalRevenue / totalPurchases : 0)}</div>
-        <div class="kpi-sub">${totalPurchases ? (totalTickets/totalPurchases).toFixed(1) : 0} ingr./pedido</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Dias de Venda</div>
+        <div class="kpi-value">${fmt(totalSalesDays)}</div>
+        <div class="kpi-sub">dias com vendas registradas</div></div>
+      <div class="kpi-card teal"><div class="kpi-label">Ticket Médio</div>
+        <div class="kpi-value">${fmtR(ticketMedio)}</div>
+        <div class="kpi-sub">por ingresso vendido</div></div>
       <div class="kpi-card purple"><div class="kpi-label">Locais</div>
         <div class="kpi-value">36</div>
         <div class="kpi-sub">${totalEvents} com vendas</div></div>
@@ -219,10 +220,9 @@ function renderAll() {
             <th onclick="sortTable('name')">Local ↕</th>
             <th onclick="sortTable('sold')">Ingressos ↕</th>
             <th onclick="sortTable('revenue')">Subtotal ↕</th>
-            <th onclick="sortTable('purchases')">Compras ↕</th>
+            <th onclick="sortTable('shows')">Shows ↕</th>
             <th onclick="sortTable('reserved')" style="color:#f4a261">Reservados ↕</th>
             <th onclick="sortTable('cancelled')" style="color:#e63946">Cancelados ↕</th>
-            <th onclick="sortTable('shows')">Shows ↕</th>
           </tr></thead>
           <tbody id="evTbody"></tbody>
         </table>
@@ -622,10 +622,8 @@ function renderTable(events) {
       <td><strong>${e.name}</strong></td>
       <td><span class="badge-sold">${e.sold}</span></td>
       <td>${fmtR(e.revenue)}</td>
-      <td>${e.purchases}</td>
       <td style="color:${e.reserved > 0 ? '#f4a261' : 'inherit'}">${e.reserved || 0}</td>
       <td style="color:${e.cancelled > 0 ? '#e63946' : 'inherit'}">${e.cancelled || 0}</td>
-      <td>${e.shows}</td>
     </tr>`).join('');
 }
 
