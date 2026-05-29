@@ -23,7 +23,7 @@ const USERS = Object.fromEntries(
 // CROWDER API CONFIG
 // ─────────────────────────────────────────────
 const CROWDER_BASE    = 'https://data.getcrowder.com';
-const CROWDER_API_KEY = process.env.CROWDER_API_KEY ||
+let CROWDER_API_KEY = process.env.CROWDER_API_KEY ||
   '0b666073629dd36b18cb760355b4daf7105a7a9cd1d338cd05f9723e971b78c9';
 
 // ─────────────────────────────────────────────
@@ -311,6 +311,21 @@ app.get('/api/debug/refresh', requireAuth, async (req, res) => {
   }
 });
 
+// ── Admin: update Crowder API key at runtime ─
+app.post('/admin/update-api-key', (req, res) => {
+  const secret = req.headers['x-admin-secret'] || req.body?.adminSecret;
+  if (!secret || secret !== (process.env.ADMIN_SECRET || 'rir-admin-2026')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { apiKey } = req.body || {};
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.length < 10) {
+    return res.status(400).json({ error: 'apiKey inválida' });
+  }
+  CROWDER_API_KEY = apiKey;
+  res.json({ ok: true, message: 'API key atualizada. Atualizando dados...' });
+  refreshData();
+});
+
 // ── Dashboard (main page) ────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.send(getDashboardHTML(req.session.user));
@@ -364,7 +379,7 @@ function getDashboardHTML(username) {
   .status-dot.red{background:var(--accent)}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
   #status-text{color:var(--muted)}
-  #token-warning{color:var(--gold);font-weight:600;display:none}
+
 
   /* ── SECTION HEADINGS ── */
   .section-heading{padding:28px 40px 0;display:flex;align-items:center;gap:12px}
@@ -532,16 +547,6 @@ function getDashboardHTML(username) {
 <div id="status-bar">
   <span class="status-dot" id="status-dot"></span>
   <span id="status-text">Conectando...</span>
-  <span id="token-warning">⚠️ Token expirando em breve — clique no bookmarklet no painel da Ticketmaster</span>
-  <span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;">
-    <a id="bookmarklet-link"
-       href="javascript:(function(){var u=localStorage.getItem('u');if(!u){alert('Faça login na Ticketmaster primeiro');return;}var t=JSON.parse(u).authToken;fetch('https://rock-in-rio-dashboard-production.up.railway.app/admin/sync-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t,adminKey:'rir-admin-2026'})}).then(r=>r.json()).then(d=>alert(d.message||'OK!')).catch(e=>alert('Erro: '+e));})();"
-       style="background:#1c2e1c;color:#2ec27e;border:1px solid #2ec27e;padding:4px 10px;border-radius:5px;text-decoration:none;font-weight:600;cursor:grab;white-space:nowrap;"
-       title="Arraste este link para sua barra de favoritos do Chrome">
-      🔖 Arraste para Favoritos — Sync Token
-    </a>
-    <span style="color:var(--muted);">← arraste para a barra de favoritos</span>
-  </span>
 </div>
 
 <!-- MODAL COMPARATIVO HISTÓRICO -->
