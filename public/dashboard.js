@@ -100,13 +100,13 @@ function renderAll() {
   const { events, byDate, byTime, heatmap, totalSold, totalRevenue,
           totalReserved, totalReservedRevenue, totalCancelled, totalCancelledRevenue } = _data;
 
-  const totalTax       = _rawShows.reduce((s, r) => s + (r.taxa || 0), 0);
   const totalTickets   = events.reduce((s, e) => s + e.sold, 0);
   const totalEvents    = events.filter(e => e.sold > 0).length;
   const totalSalesDays = (_data.byDate || []).filter(d => d.tks > 0).length;
   const ticketMedio    = totalTickets > 0 ? totalRevenue / totalTickets : 0;
   const totalRes       = events.reduce((s, e) => s + (e.reserved || 0), 0);
   const totalCan       = events.reduce((s, e) => s + (e.cancelled || 0), 0);
+  const totalCanRev    = events.reduce((s, e) => s + (e.cancelledRevenue || 0), 0);
 
   document.getElementById('app').innerHTML = `
     <!-- KPIs -->
@@ -115,27 +115,27 @@ function renderAll() {
       <div class="kpi-card red"><div class="kpi-label">Ingressos Vendidos</div>
         <div class="kpi-value">${fmt(totalTickets)}</div>
         <div class="kpi-sub">em ${totalEvents} locais ativos</div></div>
-      <div class="kpi-card gold"><div class="kpi-label">Receita (Subtotal)</div>
+      <div class="kpi-card gold"><div class="kpi-label">Receita Bruta</div>
         <div class="kpi-value">${fmtR(totalRevenue)}</div>
-        <div class="kpi-sub">+ ${fmtR(totalTax)} em taxas</div></div>
-      <div class="kpi-card blue"><div class="kpi-label">Total c/ Taxas</div>
-        <div class="kpi-value">${fmtR(totalRevenue + totalTax)}</div>
-        <div class="kpi-sub">receita bruta total</div></div>
-      <div class="kpi-card green"><div class="kpi-label">Dias de Venda</div>
-        <div class="kpi-value">${fmt(totalSalesDays)}</div>
-        <div class="kpi-sub">dias com vendas registradas</div></div>
+        <div class="kpi-sub">valor dos ingressos</div></div>
       <div class="kpi-card teal"><div class="kpi-label">Ticket Médio</div>
         <div class="kpi-value">${fmtR(ticketMedio)}</div>
         <div class="kpi-sub">por ingresso vendido</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Dias de Venda</div>
+        <div class="kpi-value">${fmt(totalSalesDays)}</div>
+        <div class="kpi-sub">dias com vendas registradas</div></div>
       <div class="kpi-card purple"><div class="kpi-label">Locais</div>
         <div class="kpi-value">36</div>
         <div class="kpi-sub">${totalEvents} com vendas</div></div>
+      <div class="kpi-card blue"><div class="kpi-label">Produtos / Shows</div>
+        <div class="kpi-value">${fmt(_rawShows.filter(r=>r.tks>0).length)}</div>
+        <div class="kpi-sub">combinações vendidas</div></div>
       <div class="kpi-card" style="border-top:3px solid #f4a261"><div class="kpi-label">Reservados</div>
         <div class="kpi-value" style="color:#f4a261">${fmt(totalRes)}</div>
         <div class="kpi-sub">pedidos em aberto</div></div>
       <div class="kpi-card" style="border-top:3px solid #e63946"><div class="kpi-label">Cancelados</div>
         <div class="kpi-value" style="color:#e63946">${fmt(totalCan)}</div>
-        <div class="kpi-sub">pedidos cancelados</div></div>
+        <div class="kpi-sub">${fmtR(totalCanRev)} estornados</div></div>
     </div>
 
     <!-- PROJEÇÃO -->
