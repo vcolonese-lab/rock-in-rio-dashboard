@@ -9,9 +9,8 @@ const path    = require('path');
 // ─────────────────────────────────────────────
 // CONFIG  (set these as Railway env variables)
 // ─────────────────────────────────────────────
-const PORT          = process.env.PORT || 3000;
+const PORT           = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
-const ADMIN_KEY     = process.env.ADMIN_KEY || 'mude-esta-chave';   // used by the bookmarklet
 
 // Users who can view the dashboard: "user1:pass1,user2:pass2"
 const USERS = Object.fromEntries(
@@ -21,34 +20,16 @@ const USERS = Object.fromEntries(
 );
 
 // ─────────────────────────────────────────────
-// TICKETMASTER EVENTS
+// CROWDER API CONFIG
 // ─────────────────────────────────────────────
-// 36 eventos Primeira Classe Rock in Rio - verificados via API /api/v2/events (mai/2026)
-const EVENT_IDS = [
-  '14136','14137','14138','14139','14140','14141','14142','14143',
-  '14144','14145','14146','14147','14148','14149','14150','14152',
-  '14153','14155','14156','14157','14158','14159','14160','14161',
-  '14162','14163','14164','14165','14166','14174','14181','14182',
-  '14183','14184','14185','14187'
-];
-const EVENT_NAMES = [
-  'Botafogo Praia Shopping','Shopping Rio Sul','Copacabana','Copacabana - Posto 5',
-  'Ipanema','Mix Rio FM - Bossa Nova Mall','RIO Galeão','Rio Design Barra',
-  'Norte Shopping','Nova América','Recreio Shopping','Carioca Shopping',
-  'Tijuca','Niterói - São Francisco','Niterói Plaza Shopping','Lagoa',
-  'Shopping Nova Iguaçú','West Shopping','Petrópolis','Búzios',
-  'Cabo Frio','Campinas','Piracicaba','Sorocaba',
-  'Belo Horizonte','Poços de Caldas','Itajubá','Campos dos Goytacazes',
-  'Macaé','Nova Friburgo','Resende','Barra Mansa',
-  'Volta Redonda','Piraí','São Gonçalo Shopping','Shopping Eldorado - São Paulo'
-];
+const CROWDER_BASE    = 'https://data.getcrowder.com';
+const CROWDER_API_KEY = process.env.CROWDER_API_KEY ||
+  '0b666073629dd36b18cb760355b4daf7105a7a9cd1d338cd05f9723e971b78c9';
 
 // ─────────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────────
 let state = {
-  token: null,          // "Bearer eyJ..."
-  tokenSetAt: null,     // Date when token was synced
   data: null,           // Aggregated dashboard data
   lastRefresh: null,    // Date of last successful data fetch
   refreshing: false,
@@ -56,150 +37,103 @@ let state = {
 };
 
 // ─────────────────────────────────────────────
-// TICKETMASTER API HELPERS
+// CROWDER DATA AGGREGATION
 // ─────────────────────────────────────────────
-const TM_BASE = 'https://api.boletius.com';
-
-// Fetch with automatic timeout + abort
-function fetchWithTimeout(url, opts = {}, timeoutMs = 15000) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  return fetch(url, { ...opts, signal: ctrl.signal })
-    .finally(() => clearTimeout(timer));
-}
-
-async function fetchIndicators(eventId, token) {
-  const res = await fetchWithTimeout(`${TM_BASE}/eventConsoleWs/indicators/${eventId}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': token
-    },
-    body: JSON.stringify({
-      indicators: [
-        { indicator: 'SALES_INDICATORS', parameters: { from: 'now-2y' } },
-        { indicator: 'SALES_BY_PAYMENT_METHODS', parameters: { from: 'now-2y', to: 'now' } }
-      ]
-    })
-  });
-  if (!res.ok) throw new Error(`indicators ${eventId}: HTTP ${res.status}`);
-  return res.json();
-}
-
-async function fetchCalendar(eventId, token) {
-  const res = await fetchWithTimeout(
-    `${TM_BASE}/reportWs/calendarSectorReport/${eventId}?type=calendarSector&month=2026-09&eventId=${eventId}`,
-    { headers: { 'Authorization': token } }
-  );
-  if (!res.ok) throw new Error(`calendar ${eventId}: HTTP ${res.status}`);
-  return res.json();
-}
-
-// Run promises in parallel with a concurrency limit
-async function pool(tasks, concurrency = 6) {
-  const results = new Array(tasks.length);
-  let idx = 0;
-  async function worker() {
-    while (idx < tasks.length) {
-      const i = idx++;
-      try { results[i] = { ok: true, value: await tasks[i]() }; }
-      catch (e) { results[i] = { ok: false, error: e.message }; }
-    }
-  }
-  await Promise.all(Array.from({ length: concurrency }, worker));
-  return results;
-}
-
-// ─────────────────────────────────────────────
-// DATA AGGREGATION
-// ─────────────────────────────────────────────
-function aggregateData(eventResults, calendarResults) {
+function aggregateCrowderData(movements) {
   const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
                           '2026-09-11','2026-09-12','2026-09-13'];
   const DATE_LABELS    = ['Sex 04/Set','Sáb 05/Set','Dom 06/Set','Seg 07/Set',
                           'Qui 11/Set','Sex 12/Set','Sáb 13/Set'];
 
-  const events   = [];
-  const rawShows = [];
-  const byDate   = {};
-  const byTime   = {};
-  const heatmap  = {};
+  // Filter only TICKET movements
+  const tickets = movements.filter(m => m.concept === 'TICKET');
+
+  const showMap = {};
+  let totalSold = 0, totalRevenue = 0;
+  let totalCancelled = 0, totalCancelledRevenue = 0;
+  const byDate = {}, byTime = {};
   FESTIVAL_DATES.forEach(d => { byDate[d] = 0; });
 
-  EVENT_IDS.forEach((id, i) => {
-    const name = EVENT_NAMES[i];
-    const evRes = eventResults[i];
-    const calRes = calendarResults[i];
+  for (const m of tickets) {
+    const show   = m.tickets && m.tickets[0] ? m.tickets[0].show   : null;
+    const sector = m.tickets && m.tickets[0] ? m.tickets[0].sector : null;
+    const key    = `${show ? show.id : 'noshow'}_${m.product ? m.product.id : 'noprod'}`;
 
-    // Parse indicators
-    // API statuses: APPROVED (confirmed sales), RESERVED (held/pending), PENDING_VERIFICATION, CANCELLED (if any)
-    let sold = 0, revenue = 0, purchases = 0, creditCard = 0, pix = 0;
-    let reserved = 0, reservedRevenue = 0, cancelled = 0, cancelledRevenue = 0;
-    if (evRes.ok && evRes.value?.indicators) {
-      for (const ind of evRes.value.indicators) {
-        if (ind.indicator === 'SALES_INDICATORS' && ind.value?.status) {
-          const s = ind.value.status;
-          // APPROVED: confirmed, paid orders
-          if (s.APPROVED) {
-            sold      = s.APPROVED.primaryQuantity || 0;
-            revenue   = s.APPROVED.primaryAmount   || 0;
-            purchases = s.APPROVED.purchases       || 0;
-          }
-          // RESERVED: held/reserved orders (may be completed or cancelled)
-          if (s.RESERVED) {
-            reserved        = s.RESERVED.primaryQuantity || 0;
-            reservedRevenue = s.RESERVED.primaryAmount   || 0;
-          }
-          // CANCELLED or REFUNDED: cancelled orders
-          if (s.CANCELLED) {
-            cancelled        = s.CANCELLED.primaryQuantity || 0;
-            cancelledRevenue = s.CANCELLED.primaryAmount   || 0;
-          }
-          if (s.REFUNDED) {
-            cancelled        += s.REFUNDED.primaryQuantity || 0;
-            cancelledRevenue += s.REFUNDED.primaryAmount   || 0;
-          }
-        }
-        if (ind.indicator === 'SALES_BY_PAYMENT_METHODS' && ind.value?.paymentTypes) {
-          const pt = ind.value.paymentTypes;
-          creditCard = pt.CREDIT_CARD?.primaryQuantity || 0;
-          pix        = pt.PIX?.primaryQuantity         || 0;
-        }
-      }
+    if (!showMap[key]) {
+      const startDate = show ? (show.startDate || '') : '';
+      showMap[key] = {
+        showId:      show ? show.id : null,
+        productId:   m.product ? m.product.id : null,
+        eventId:     m.event ? m.event.id : null,
+        eventName:   m.event ? m.event.name : '',
+        showName:    show ? show.name : '',
+        productName: m.product ? m.product.name : '',
+        sectorName:  sector ? sector.name : (m.product ? m.product.name : ''),
+        startDate,
+        date:        startDate.substring(0, 10),
+        time:        startDate.substring(11, 16),
+        tks: 0, subtotal: 0,
+        cancelled: 0, cancelledRevenue: 0
+      };
     }
 
-    // Parse calendar (show-level data)
-    // API response: { report: [ { date: '2026-09-04T12:00', tks, subTotal, totalServiceCharge, sector } ] }
-    const showCount = { count: 0 };
-    heatmap[name] = {};
-    if (calRes.ok && calRes.value) {
-      const calData = Array.isArray(calRes.value) ? calRes.value
-                    : (calRes.value.report || calRes.value.data || []);
-      for (const show of calData) {
-        const date    = (show.date || show.showDate || '').substring(0, 10);
-        const time    = (show.date || show.showTime || show.time || '').substring(11, 16);
-        const tickets = show.tks || show.ticketsSold || show.sold || show.quantity || 0;
-        const sub     = show.subTotal || show.subtotal || show.revenue || (tickets * 220);
-        const tax     = show.totalServiceCharge || show.serviceCharge || show.tax || (sub * 0.1);
-        if (!tickets) continue;
+    const entry = showMap[key];
+    entry.tks      += m.ticketCount || 0;
+    entry.subtotal += m.amount      || 0;
 
-        rawShows.push({ evId: id, local: name, date, time, tks: tickets, subtotal: sub, taxa: tax });
-        showCount.count++;
-
-        if (FESTIVAL_DATES.includes(date)) {
-          byDate[date] = (byDate[date] || 0) + tickets;
-          heatmap[name][date] = (heatmap[name][date] || 0) + tickets;
-        }
-        const timeKey = time.substring(0, 5);
-        if (timeKey) byTime[timeKey] = (byTime[timeKey] || 0) + tickets;
-      }
+    if (m.operation === 'REFUND') {
+      entry.cancelled        += Math.abs(m.ticketCount || 0);
+      entry.cancelledRevenue += Math.abs(m.amount      || 0);
+      totalCancelled         += Math.abs(m.ticketCount || 0);
+      totalCancelledRevenue  += Math.abs(m.amount      || 0);
     }
 
-    events.push({ id, name, sold, revenue, purchases, creditCard, pix, shows: showCount.count,
-                  reserved, reservedRevenue, cancelled, cancelledRevenue });
-  });
+    totalSold    += m.ticketCount || 0;
+    totalRevenue += m.amount      || 0;
 
-  // Build sorted by-time array
+    // Accumulate by date/time (only positive movements)
+    if ((m.ticketCount || 0) > 0) {
+      const d = entry.date, t = entry.time;
+      if (FESTIVAL_DATES.includes(d)) byDate[d] = (byDate[d] || 0) + (m.ticketCount || 0);
+      if (t) byTime[t] = (byTime[t] || 0) + (m.ticketCount || 0);
+    }
+  }
+
+  // Build rawShows (dashboard-compatible format)
+  const rawShows = Object.values(showMap).map(s => ({
+    evId:        s.showId,
+    local:       s.showName || s.eventName,
+    date:        s.date,
+    time:        s.time,
+    tks:         s.tks,
+    subtotal:    s.subtotal,
+    taxa:        0,
+    // extra fields for richer display
+    eventId:     s.eventId,
+    eventName:   s.eventName,
+    productName: s.productName,
+    sectorName:  s.sectorName,
+    cancelled:   s.cancelled,
+    cancelledRevenue: s.cancelledRevenue
+  }));
+
+  // Aggregate per event for the events[] array used by the dashboard table
+  const eventsMap = {};
+  for (const s of rawShows) {
+    const k = s.eventId || s.eventName || s.local;
+    if (!eventsMap[k]) eventsMap[k] = {
+      id: s.eventId, name: s.eventName || s.local,
+      sold: 0, revenue: 0, cancelled: 0, cancelledRevenue: 0,
+      reserved: 0, reservedRevenue: 0, purchases: 0, creditCard: 0, pix: 0, shows: 0
+    };
+    eventsMap[k].sold             += s.tks;
+    eventsMap[k].revenue          += s.subtotal;
+    eventsMap[k].cancelled        += s.cancelled        || 0;
+    eventsMap[k].cancelledRevenue += s.cancelledRevenue || 0;
+    eventsMap[k].shows++;
+  }
+  const events = Object.values(eventsMap);
+
   const byTimeArr = Object.entries(byTime)
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([time, tks]) => ({ time, tks }));
@@ -208,55 +142,58 @@ function aggregateData(eventResults, calendarResults) {
     date, label: DATE_LABELS[i], tks: byDate[date] || 0
   }));
 
-  return { events, rawShows, byDate: byDateArr, byTime: byTimeArr, heatmap,
-           totalSold:            events.reduce((s, e) => s + e.sold, 0),
-           totalRevenue:         events.reduce((s, e) => s + e.revenue, 0),
-           totalReserved:        events.reduce((s, e) => s + e.reserved, 0),
-           totalReservedRevenue: events.reduce((s, e) => s + e.reservedRevenue, 0),
-           totalCancelled:       events.reduce((s, e) => s + e.cancelled, 0),
-           totalCancelledRevenue:events.reduce((s, e) => s + e.cancelledRevenue, 0) };
+  return {
+    rawShows, events, byDate: byDateArr, byTime: byTimeArr, heatmap: {},
+    totalSold, totalRevenue,
+    totalCancelled, totalCancelledRevenue,
+    totalReserved: 0, totalReservedRevenue: 0
+  };
 }
 
 // ─────────────────────────────────────────────
-// DATA REFRESH
+// DATA REFRESH (Crowder API with pagination)
 // ─────────────────────────────────────────────
 async function refreshData() {
-  if (!state.token) { state.error = 'Token não configurado. Use o bookmarklet para sincronizar.'; return; }
   if (state.refreshing) return;
   state.refreshing = true;
   state.error = null;
-  console.log(`[${new Date().toISOString()}] Iniciando refresh de dados...`);
+  console.log(`[${new Date().toISOString()}] Iniciando refresh (Crowder API)...`);
 
-  // Global safety timeout: abort entire refresh after 3 minutes
   const globalTimeout = setTimeout(() => {
     if (state.refreshing) {
       state.refreshing = false;
-      state.error = 'Timeout: refresh demorou mais de 3 minutos. Token pode ter expirado — use o bookmarklet para sincronizar.';
+      state.error = 'Timeout: refresh demorou mais de 3 minutos.';
       console.error('[refresh timeout] Abortado após 3 minutos.');
     }
   }, 3 * 60 * 1000);
 
   try {
-    const indicatorTasks  = EVENT_IDS.map(id => () => fetchIndicators(id, state.token));
-    const calendarTasks   = EVENT_IDS.map(id => () => fetchCalendar(id, state.token));
+    const allMovements = [];
+    let lastUpdate = 0, lastMovementId = 1, hasMore = true, pages = 0;
 
-    const [eventResults, calendarResults] = await Promise.all([
-      pool(indicatorTasks, 6),
-      pool(calendarTasks, 6)
-    ]);
+    while (hasMore) {
+      const url = `${CROWDER_BASE}/activity/organizer?lastUpdate=${lastUpdate}&lastMovementId=${lastMovementId}`;
+      const res = await fetch(url, { headers: { 'ApiKey': CROWDER_API_KEY } });
+      if (!res.ok) throw new Error(`Crowder API HTTP ${res.status}: ${await res.text()}`);
 
-    // Detect widespread auth failures (token provavelmente expirado)
-    const failures = eventResults.filter(r => !r.ok);
-    if (failures.length > EVENT_IDS.length * 0.5) {
-      const sample = failures[0]?.error || '';
-      state.error = `Token expirado ou inválido (${failures.length}/${EVENT_IDS.length} eventos falharam: ${sample}). Use o bookmarklet para sincronizar.`;
-      console.error('[refresh]', state.error);
-      return;
+      const json = await res.json();
+      const batch = json.movements || [];
+      allMovements.push(...batch);
+
+      hasMore = json.hasMore === true;
+      if (hasMore && batch.length > 0) {
+        lastUpdate      = json.lastUpdate      || batch[batch.length - 1].lastUpdate;
+        lastMovementId  = json.lastMovementId  || batch[batch.length - 1].id;
+      }
+      pages++;
+      if (pages > 2000) { console.warn('[refresh] Safety limit: 2000 páginas'); break; }
     }
 
-    state.data        = aggregateData(eventResults, calendarResults);
+    console.log(`[refresh] ${allMovements.length} movements em ${pages} página(s)`);
+    state.data        = aggregateCrowderData(allMovements);
     state.lastRefresh = new Date();
-    console.log(`[${new Date().toISOString()}] Dados atualizados. Total vendido: ${state.data.totalSold} ingressos`);
+    console.log(`[${new Date().toISOString()}] Pronto. Total vendido: ${state.data.totalSold}`);
+
   } catch (err) {
     state.error = err.message;
     console.error('[refresh error]', err.message);
@@ -267,9 +204,7 @@ async function refreshData() {
 }
 
 // Auto-refresh every 5 minutes
-cron.schedule('*/5 * * * *', () => {
-  if (state.token) refreshData();
-});
+cron.schedule('*/5 * * * *', refreshData);
 
 // ─────────────────────────────────────────────
 // EXPRESS APP
@@ -350,46 +285,13 @@ app.post('/logout', (req, res) => {
   res.redirect('/login');
 });
 
-// ── Admin: sync token from bookmarklet ──────
-// CORS headers helper for sync-token (allows calls from any origin, e.g. Ticketmaster dashboard)
-function corsForSyncToken(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
-
-app.options('/admin/sync-token', (req, res) => {
-  corsForSyncToken(req, res);
-  res.sendStatus(204);
-});
-
-app.post('/admin/sync-token', (req, res) => {
-  corsForSyncToken(req, res);
-  const { token, adminKey } = req.body;
-  if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Forbidden' });
-  if (!token) return res.status(400).json({ error: 'Token required' });
-
-  const bearer = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  state.token      = bearer;
-  state.tokenSetAt = new Date();
-  console.log(`[${new Date().toISOString()}] Token sincronizado via bookmarklet.`);
-
-  // Trigger immediate refresh
-  refreshData();
-  res.json({ ok: true, message: 'Token sincronizado! Dados sendo atualizados...' });
-});
-
 // ── API: data endpoint ───────────────────────
 app.get('/api/data', requireAuth, (req, res) => {
   res.json({
-    data: state.data,
+    data:        state.data,
     lastRefresh: state.lastRefresh,
-    tokenSetAt: state.tokenSetAt,
-    refreshing: state.refreshing,
-    error: state.error,
-    tokenExpiry: state.tokenSetAt
-      ? new Date(state.tokenSetAt.getTime() + 12 * 60 * 60 * 1000).toISOString()
-      : null
+    refreshing:  state.refreshing,
+    error:       state.error
   });
 });
 
@@ -399,15 +301,11 @@ app.post('/api/refresh', requireAuth, async (req, res) => {
   res.json({ ok: true, message: 'Atualização iniciada...' });
 });
 
-// ── Debug: raw API response for one event ────
-app.get('/api/debug/:eventId', async (req, res) => {
-  const { adminKey } = req.query;
-  if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Forbidden' });
-  if (!state.token) return res.status(400).json({ error: 'Token not set' });
+// ── Debug: force refresh ─────────────────────
+app.get('/api/debug/refresh', requireAuth, async (req, res) => {
   try {
-    const raw = await fetchIndicators(req.params.eventId, state.token);
-    const cal = await fetchCalendar(req.params.eventId, state.token);
-    res.json({ indicators: raw, calendar: cal });
+    await refreshData();
+    res.json({ ok: true, totalSold: state.data?.totalSold, error: state.error });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -593,7 +491,7 @@ function getDashboardHTML(username) {
 
 <div id="loading">
   <div class="spinner"></div>
-  <span>Carregando dados da Ticketmaster...</span>
+  <span>Carregando dados do Crowder...</span>
 </div>
 
 <header>
@@ -601,7 +499,7 @@ function getDashboardHTML(username) {
     <div class="logo-badge">Rock in Rio 2026</div>
     <div>
       <h1>Primeira Classe — Dashboard de Vendas</h1>
-      <p>${EVENT_IDS.length} locais · Setembro 2026 · Logado como <strong>${username}</strong></p>
+      <p>Setembro 2026 · Logado como <strong>${username}</strong></p>
     </div>
   </div>
   <div class="header-right">
@@ -681,8 +579,10 @@ function getDashboardHTML(username) {
 // ─────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n🎸 Rock in Rio Dashboard rodando em http://localhost:${PORT}`);
-  console.log(`\n⚙️  Variáveis de ambiente necessárias:`);
-  console.log(`   USERS        = "usuario1:senha1,usuario2:senha2"`);
-  console.log(`   ADMIN_KEY    = "chave-secreta-do-bookmarklet"`);
-  console.log(`   SESSION_SECRET = "string-aleatória-longa"\n`);
+  console.log(`\n⚙️  Variáveis de ambiente:`);
+  console.log(`   USERS          = "usuario1:senha1,usuario2:senha2"`);
+  console.log(`   SESSION_SECRET = "string-aleatória-longa"`);
+  console.log(`   CROWDER_API_KEY = (opcional, padrão em código)\n`);
+  // Buscar dados imediatamente ao iniciar
+  refreshData();
 });
