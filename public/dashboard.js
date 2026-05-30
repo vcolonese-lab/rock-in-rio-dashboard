@@ -103,6 +103,7 @@ function renderAll() {
   const totalTickets   = events.reduce((s, e) => s + e.sold, 0);
   const totalEvents    = events.filter(e => e.sold > 0).length;
   const totalSalesDays = (_data.byDate || []).filter(d => d.tks > 0).length;
+  const totalTax       = _rawShows.reduce((s, r) => s + (r.taxa || 0), 0);
   const ticketMedio    = totalTickets > 0 ? totalRevenue / totalTickets : 0;
   const totalRes       = events.reduce((s, e) => s + (e.reserved || 0), 0);
   const totalCan       = events.reduce((s, e) => s + (e.cancelled || 0), 0);
@@ -118,6 +119,9 @@ function renderAll() {
       <div class="kpi-card gold"><div class="kpi-label">Receita Bruta</div>
         <div class="kpi-value">${fmtR(totalRevenue)}</div>
         <div class="kpi-sub">valor dos ingressos</div></div>
+      <div class="kpi-card blue"><div class="kpi-label">Total c/ Taxas (10%)</div>
+        <div class="kpi-value">${fmtR(totalRevenue + totalTax)}</div>
+        <div class="kpi-sub">+ ${fmtR(totalTax)} em taxas</div></div>
       <div class="kpi-card teal"><div class="kpi-label">Ticket Médio</div>
         <div class="kpi-value">${fmtR(ticketMedio)}</div>
         <div class="kpi-sub">por ingresso vendido</div></div>
@@ -127,9 +131,6 @@ function renderAll() {
       <div class="kpi-card purple"><div class="kpi-label">Locais</div>
         <div class="kpi-value">36</div>
         <div class="kpi-sub">${totalEvents} com vendas</div></div>
-      <div class="kpi-card blue"><div class="kpi-label">Produtos / Shows</div>
-        <div class="kpi-value">${fmt(_rawShows.filter(r=>r.tks>0).length)}</div>
-        <div class="kpi-sub">combinações vendidas</div></div>
       <div class="kpi-card" style="border-top:3px solid #f4a261"><div class="kpi-label">Reservados</div>
         <div class="kpi-value" style="color:#f4a261">${fmt(totalRes)}</div>
         <div class="kpi-sub">pedidos em aberto</div></div>
@@ -755,17 +756,17 @@ function exportXLS() {
   if (!_rawShows.length) { alert('Nenhum dado disponível para exportar.'); return; }
   if (typeof XLSX === 'undefined') { alert('SheetJS carregando, tente em breve.'); return; }
 
-  const wsData = [['ID Evento','Local','Produto','Data Festival','Horário Saída','Ingressos','Subtotal (R$)','Taxa (R$)','Total (R$)']];
+  const wsData = [['ID Evento','Nome do Evento','Local','Produto','Setor','Data Festival','Horário Saída','Ingressos','Subtotal (R$)','Taxa (R$)','Total (R$)']];
   _rawShows.forEach(r => wsData.push([
-    r.evId, r.local, 'Primeira Classe Rock in Rio - ' + r.local,
+    r.evId, r.eventName || r.local, r.local, r.productName || r.local, r.sectorName || '',
     r.date, r.time, r.tks, r.subtotal, r.taxa, +(r.subtotal + r.taxa).toFixed(2)
   ]));
   const totS = _rawShows.reduce((s,r)=>s+r.subtotal,0);
   const totT = _rawShows.reduce((s,r)=>s+r.taxa,0);
-  wsData.push(['','','','','TOTAL',_rawShows.reduce((s,r)=>s+r.tks,0),+totS.toFixed(2),+totT.toFixed(2),+(totS+totT).toFixed(2)]);
+  wsData.push(['','','','','','TOTAL',_rawShows.reduce((s,r)=>s+r.tks,0),+totS.toFixed(2),+totT.toFixed(2),+(totS+totT).toFixed(2)]);
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{wch:10},{wch:32},{wch:42},{wch:14},{wch:12},{wch:10},{wch:14},{wch:12},{wch:14}];
+  ws['!cols'] = [{wch:10},{wch:36},{wch:28},{wch:36},{wch:20},{wch:14},{wch:12},{wch:10},{wch:14},{wch:12},{wch:14}];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Shows Detalhados');
