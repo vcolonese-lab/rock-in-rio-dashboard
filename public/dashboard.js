@@ -232,7 +232,7 @@ function renderAll() {
 
   renderCharts(events, byDate, byTime);
   renderHistoricoChart();
-  renderHeatmap(events, byDate, heatmap);
+  renderHeatmap(events, byDate, _rawShows);
   renderProjection();
   renderRanking(events, byTime);
   renderTable(events);
@@ -534,12 +534,22 @@ function renderHistoricoChart() {
   });
 }
 
-function renderHeatmap(events, byDate, heatmap) {
+function renderHeatmap(events, byDate, rawShows) {
   const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
                           '2026-09-11','2026-09-12','2026-09-13'];
   const DATE_SHORT = ['04/Set','05/Set','06/Set','07/Set','11/Set','12/Set','13/Set'];
-  const maxVal = Math.max(1, ...events.flatMap(e =>
-    FESTIVAL_DATES.map(d => (heatmap[e.name]?.[d] || 0))));
+
+  // Build heatmap from rawShows: { eventName -> { date -> tks } }
+  const heatmap = {};
+  for (const s of rawShows) {
+    if (!s.tks || s.tks <= 0) continue;
+    const name = s.eventName || s.local || '';
+    if (!heatmap[name]) heatmap[name] = {};
+    heatmap[name][s.date] = (heatmap[name][s.date] || 0) + s.tks;
+  }
+
+  const maxVal = Math.max(1, ...Object.values(heatmap).flatMap(row =>
+    FESTIVAL_DATES.map(d => row[d] || 0)));
 
   function hmColor(v) {
     if (!v) return 'transparent';
@@ -548,15 +558,30 @@ function renderHeatmap(events, byDate, heatmap) {
     return `rgba(${r},${g},70,${0.2 + t * 0.7})`;
   }
 
-  const rows = events.filter(e => e.sold > 0).sort((a, b) => b.sold - a.sold);
+  // Use event names from heatmap (those that have actual sales on festival dates)
+  const eventNames = Object.keys(heatmap).filter(name =>
+    FESTIVAL_DATES.some(d => heatmap[name][d] > 0)
+  ).sort((a, b) => {
+    const totA = FESTIVAL_DATES.reduce((s, d) => s + (heatmap[a][d] || 0), 0);
+    const totB = FESTIVAL_DATES.reduce((s, d) => s + (heatmap[b][d] || 0), 0);
+    return totB - totA;
+  });
+
+  if (eventNames.length === 0) {
+    document.getElementById('heatmap-container').innerHTML =
+      '<div style="padding:20px;color:var(--muted);text-align:center">Nenhum ingresso associado a datas do festival ainda.</div>';
+    return;
+  }
+
   let html = '<table class="heatmap-table"><thead><tr>';
   html += '<th class="event-col">Local</th>';
   DATE_SHORT.forEach(d => { html += `<th>${d}</th>`; });
   html += '</tr></thead><tbody>';
-  rows.forEach(ev => {
-    html += `<tr><td class="event-name">${ev.name}</td>`;
+  eventNames.forEach(name => {
+    const label = name.replace('Primeira Classe Rock in Rio - ', '');
+    html += `<tr><td class="event-name">${label}</td>`;
     FESTIVAL_DATES.forEach(d => {
-      const v = heatmap[ev.name]?.[d] || 0;
+      const v = heatmap[name][d] || 0;
       const color = hmColor(v);
       html += `<td><span class="hm-cell" style="background:${color}">${v || ''}</span></td>`;
     });
