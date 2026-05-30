@@ -9,8 +9,9 @@ const path    = require('path');
 // ─────────────────────────────────────────────
 // CONFIG  (set these as Railway env variables)
 // ─────────────────────────────────────────────
-const PORT           = process.env.PORT || 3000;
+const PORT           = process.env.PORT || 3000
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const ADMIN_KEY     = process.env.ADMIN_KEY || 'rir-admin-2026';
 
 // Users who can view the dashboard: "user1:pass1,user2:pass2"
 const USERS = Object.fromEntries(
@@ -350,6 +351,18 @@ app.post('/logout', (req, res) => {
 });
 
 // ── API: data endpoint ───────────────────────
+// ── API: public data endpoint (sem login, protegido por ADMIN_KEY) ──
+app.get('/api/public/data', (req, res) => {
+  const { adminKey } = req.query;
+  if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Forbidden' });
+  res.json(state.data ? {
+    data: state.data,
+    lastRefresh: state.lastRefresh,
+    refreshing: state.refreshing,
+    error: state.error
+  } : null);
+});
+
 app.get('/api/data', requireAuth, (req, res) => {
   res.json({
     data:        state.data,
