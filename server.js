@@ -9,9 +9,8 @@ const path    = require('path');
 // ─────────────────────────────────────────────
 // CONFIG  (set these as Railway env variables)
 // ─────────────────────────────────────────────
-const PORT           = process.env.PORT || 3000
+const PORT           = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
-const ADMIN_KEY     = process.env.ADMIN_KEY || 'rir-admin-2026';
 
 // Users who can view the dashboard: "user1:pass1,user2:pass2"
 const USERS = Object.fromEntries(
@@ -48,7 +47,7 @@ let state = {
 // ─────────────────────────────────────────────
 // CROWDER DATA AGGREGATION
 // ─────────────────────────────────────────────
-function aggregateCrowderData(movements) {
+function aggregateCrowderData(movements, catalogShows = []) {
   const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
                           '2026-09-11','2026-09-12','2026-09-13'];
   const DATE_LABELS    = ['Sex 04/Set','Sáb 05/Set','Dom 06/Set','Seg 07/Set',
@@ -119,7 +118,7 @@ function aggregateCrowderData(movements) {
     }
   }
 
-  // Build rawShows (dashboard-compatible format)
+  // Build rawShows (dashboard-compatible format) — only shows with sales
   const rawShows = Object.values(showMap).map(s => ({
     evId:        s.showId,
     local:       s.showName || s.eventName,
@@ -136,6 +135,45 @@ function aggregateCrowderData(movements) {
     cancelled:   s.cancelled,
     cancelledRevenue: s.cancelledRevenue
   }));
+
+  // Build allShows: rawShows + catalog shows that had zero sales
+  // Try to normalize catalog entries into the same shape
+  const soldKeys = new Set(Object.keys(showMap)); // "showId_productId"
+  const catalogExtra = catalogShows
+    .filter(c => {
+      // Determine the key to check if this show already has sales
+      const sid = c.id || c.showId || c.show_id || null;
+      const pid = (c.product && c.product.id) || c.productId || null;
+      const k = `${sid}_${pid}`;
+      return !soldKeys.has(k);
+    })
+    .map(c => {
+      const startDate = c.startDate || c.start_date || c.date || '';
+      const evName = (c.event && c.event.name) || c.eventName || c.event_name || '';
+      return {
+        evId:        c.id || c.showId || null,
+        local:       c.name || c.showName || evName,
+        date:        startDate.substring(0, 10),
+        time:        startDate.substring(11, 16),
+        tks:         0,
+        subtotal:    0,
+        taxa:        0,
+        eventId:     (c.event && c.event.id) || c.eventId || null,
+        eventName:   evName,
+        productName: (c.product && c.product.name) || c.productName || '',
+        sectorName:  (c.sector && c.sector.name) || c.sectorName || '',
+        cancelled:   0,
+        cancelledRevenue: 0
+      };
+    })
+    .filter(c =>
+      !EVENT_NAME_FILTER ||
+      (c.eventName && c.eventName.includes(EVENT_NAME_FILTER)) ||
+      (c.local && c.local.includes(EVENT_NAME_FILTER))
+    );
+
+  const allShows = [...rawShows, ...catalogExtra]
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
   // Aggregate per event for the events[] array used by the dashboard table
   const eventsMap = {};
@@ -168,7 +206,7 @@ function aggregateCrowderData(movements) {
     .map(([date, v]) => ({ date, tks: v.tks, revenue: v.revenue }));
 
   return {
-    rawShows, events, byDate: byDateArr, byTime: byTimeArr, heatmap: {},
+    rawShows, allShows, events, byDate: byDateArr, byTime: byTimeArr, heatmap: {},
     salesByDate: salesByDateArr,
     totalSold, totalRevenue,
     totalCancelled, totalCancelledRevenue,
@@ -216,7 +254,33 @@ async function refreshData() {
     }
 
     console.log(`[refresh] ${allMovements.length} movements em ${pages} página(s)`);
-    state.data        = aggregateCrowderData(allMovements);
+
+    // Fetch the show catalog (all shows, including those with zero sales)
+    let catalogShows = [];
+    try {
+      const catRes = await fetch(`${CROWDER_BASE}/shows/organizer`, {
+        headers: { 'ApiKey': CROWDER_API_KEY }
+      });
+      if (catRes.ok) {
+        const catJson = await catRes.json();
+        // The catalog can be an array or have a .shows / .data field
+        const raw = Array.isArray(catJson) ? catJson
+                  : (catJson.shows || catJson.data || catJson.results || []);
+        catalogShows = raw.filter(s =>
+          !EVENT_NAME_FILTER ||
+          (s.eventName && s.eventName.includes(EVENT_NAME_FILTER)) ||
+          (s.event && s.event.name && s.event.name.includes(EVENT_NAME_FILTER)) ||
+          (s.name && s.name.includes(EVENT_NAME_FILTER))
+        );
+        console.log(`[refresh] Catálogo: ${catalogShows.length} shows`);
+      } else {
+        console.warn(`[refresh] Catálogo shows: HTTP ${catRes.status}`);
+      }
+    } catch (e) {
+      console.warn('[refresh] Falha ao buscar catálogo de shows:', e.message);
+    }
+
+    state.data        = aggregateCrowderData(allMovements, catalogShows);
     state.lastRefresh = new Date();
     console.log(`[${new Date().toISOString()}] Pronto. Total vendido: ${state.data.totalSold}`);
 
@@ -351,18 +415,6 @@ app.post('/logout', (req, res) => {
 });
 
 // ── API: data endpoint ───────────────────────
-// ── API: public data endpoint (sem login, protegido por ADMIN_KEY) ──
-app.get('/api/public/data', (req, res) => {
-  const { adminKey } = req.query;
-  if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Forbidden' });
-  res.json(state.data ? {
-    data: state.data,
-    lastRefresh: state.lastRefresh,
-    refreshing: state.refreshing,
-    error: state.error
-  } : null);
-});
-
 app.get('/api/data', requireAuth, (req, res) => {
   res.json({
     data:        state.data,

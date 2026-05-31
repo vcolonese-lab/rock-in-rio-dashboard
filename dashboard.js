@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════
 let _data = null;
 let _rawShows = [];
+let _allShows = [];
 let _charts = {};
 let _sortCol = 'sold', _sortDir = -1, _filter = '';
 
@@ -24,6 +25,7 @@ async function loadData() {
     if (json.data) {
       _data     = json.data;
       _rawShows = json.data.rawShows || [];
+      _allShows = json.data.allShows || _rawShows;
       document.getElementById('loading').classList.add('hidden');
       try {
         renderAll();
@@ -232,7 +234,7 @@ function renderAll() {
 
   renderCharts(events, byDate, byTime);
   renderHistoricoChart();
-  renderHeatmap(events, byDate, heatmap);
+  renderHeatmap(events, byDate, _rawShows);
   renderProjection();
   renderRanking(events, byTime);
   renderTable(events);
@@ -534,12 +536,22 @@ function renderHistoricoChart() {
   });
 }
 
-function renderHeatmap(events, byDate, heatmap) {
+function renderHeatmap(events, byDate, rawShows) {
   const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
                           '2026-09-11','2026-09-12','2026-09-13'];
   const DATE_SHORT = ['04/Set','05/Set','06/Set','07/Set','11/Set','12/Set','13/Set'];
-  const maxVal = Math.max(1, ...events.flatMap(e =>
-    FESTIVAL_DATES.map(d => (heatmap[e.name]?.[d] || 0))));
+
+  // Build heatmap from rawShows: { eventName -> { date -> tks } }
+  const heatmap = {};
+  for (const s of rawShows) {
+    if (!s.tks || s.tks <= 0) continue;
+    const name = s.eventName || s.local || '';
+    if (!heatmap[name]) heatmap[name] = {};
+    heatmap[name][s.date] = (heatmap[name][s.date] || 0) + s.tks;
+  }
+
+  const maxVal = Math.max(1, ...Object.values(heatmap).flatMap(row =>
+    FESTIVAL_DATES.map(d => row[d] || 0)));
 
   function hmColor(v) {
     if (!v) return 'transparent';
@@ -548,15 +560,30 @@ function renderHeatmap(events, byDate, heatmap) {
     return `rgba(${r},${g},70,${0.2 + t * 0.7})`;
   }
 
-  const rows = events.filter(e => e.sold > 0).sort((a, b) => b.sold - a.sold);
+  // Use event names from heatmap (those that have actual sales on festival dates)
+  const eventNames = Object.keys(heatmap).filter(name =>
+    FESTIVAL_DATES.some(d => heatmap[name][d] > 0)
+  ).sort((a, b) => {
+    const totA = FESTIVAL_DATES.reduce((s, d) => s + (heatmap[a][d] || 0), 0);
+    const totB = FESTIVAL_DATES.reduce((s, d) => s + (heatmap[b][d] || 0), 0);
+    return totB - totA;
+  });
+
+  if (eventNames.length === 0) {
+    document.getElementById('heatmap-container').innerHTML =
+      '<div style="padding:20px;color:var(--muted);text-align:center">Nenhum ingresso associado a datas do festival ainda.</div>';
+    return;
+  }
+
   let html = '<table class="heatmap-table"><thead><tr>';
   html += '<th class="event-col">Local</th>';
   DATE_SHORT.forEach(d => { html += `<th>${d}</th>`; });
   html += '</tr></thead><tbody>';
-  rows.forEach(ev => {
-    html += `<tr><td class="event-name">${ev.name}</td>`;
+  eventNames.forEach(name => {
+    const label = name.replace('Primeira Classe Rock in Rio - ', '');
+    html += `<tr><td class="event-name">${label}</td>`;
     FESTIVAL_DATES.forEach(d => {
-      const v = heatmap[ev.name]?.[d] || 0;
+      const v = heatmap[name][d] || 0;
       const color = hmColor(v);
       html += `<td><span class="hm-cell" style="background:${color}">${v || ''}</span></td>`;
     });
@@ -644,6 +671,202 @@ const HIST_DATA = [
   { year: 2022, vendas: 143518, receita: 17930255.00, midia: 333400.00,  total: 18263655.00, comissao: 1793025.50, midiaRir: 83350.00,  terreno: 701170.00, totalRir: 2577545.50  },
   { year: 2024, vendas: 157738, receita: 24190432.00, midia: 1994926.00, total: 26185358.00, comissao: 2419043.20, midiaRir: 498731.55, terreno: 753945.73, totalRir: 3671720.48  },
 ];
+
+// Dados históricos de vendas acumuladas por contagem regressiva até o 1º show
+// Colunas: [2015, 2017, 2019, 2022, 2024]  —  fonte: Comparativo de Vendas RiR.xlsx
+const HIST_COUNTDOWN = {
+  180:[0,0,0,0,0],
+  179:[0,0,0,0,0],
+  178:[0,0,0,37,0],
+  177:[0,0,0,53,0],
+  176:[0,0,0,73,0],
+  175:[0,0,0,325,0],
+  174:[0,0,0,532,0],
+  173:[0,0,0,622,0],
+  172:[0,0,0,695,0],
+  171:[0,0,0,737,0],
+  170:[0,0,0,786,0],
+  169:[0,12558,835,0,0],
+  168:[0,13329,1259,0,0],
+  167:[0,13670,1551,0,0],
+  166:[0,14036,1654,0,0],
+  165:[0,14334,1774,0,0],
+  164:[0,14609,1906,0,0],
+  163:[0,14781,1994,0,0],
+  162:[0,14987,2081,0,0],
+  161:[0,15163,2214,0,0],
+  160:[0,15383,2313,0,0],
+  159:[0,15608,2397,0,0],
+  158:[0,15849,2472,0,0],
+  157:[0,16096,2556,0,0],
+  156:[0,16351,2624,0,0],
+  155:[0,16548,2701,0,0],
+  154:[0,16764,2786,0,0],
+  153:[0,16974,2862,0,0],
+  152:[0,17218,2946,0,0],
+  151:[0,17421,3019,0,0],
+  150:[0,17608,3100,0,0],
+  149:[0,17773,3170,0,0],
+  148:[0,18012,3248,0,0],
+  147:[0,18192,3325,0,0],
+  146:[0,18379,3397,0,0],
+  145:[0,18557,3462,0,0],
+  144:[0,18742,3542,0,0],
+  143:[0,18939,3624,0,0],
+  142:[0,19138,3703,0,0],
+  141:[0,19336,3789,0,0],
+  140:[0,19521,3879,0,0],
+  139:[0,19706,3949,0,0],
+  138:[0,19882,4019,0,0],
+  137:[0,20067,4098,0,0],
+  136:[0,20252,4178,0,0],
+  135:[0,20437,4262,0,0],
+  134:[0,20602,4347,0,0],
+  133:[0,20775,4433,0,0],
+  132:[0,20952,4518,0,0],
+  131:[0,21130,4611,0,0],
+  130:[0,21332,4697,0,0],
+  129:[0,21566,4788,0,0],
+  128:[0,21804,4880,0,0],
+  127:[0,22010,4970,0,0],
+  126:[0,22218,5056,0,0],
+  125:[0,22437,5141,0,0],
+  124:[0,22659,5228,0,0],
+  123:[0,22867,5315,0,0],
+  122:[0,23063,5399,0,0],
+  121:[0,23259,5494,0,0],
+  120:[0,23455,5574,0,0],
+  119:[0,23642,5654,0,0],
+  118:[0,23820,5733,0,0],
+  117:[0,23997,5812,0,0],
+  116:[0,24177,5900,0,0],
+  115:[0,24357,5996,0,0],
+  114:[0,24533,6082,0,0],
+  113:[0,24700,6174,0,0],
+  112:[0,24876,6262,0,0],
+  111:[0,25047,6352,0,0],
+  110:[0,25215,6444,0,0],
+  109:[0,25380,6535,0,0],
+  108:[0,25543,6631,0,0],
+  107:[0,0,23010,13119,8965],
+  106:[0,0,23168,13248,9125],
+  105:[0,0,23310,13379,9252],
+  104:[0,0,23456,13506,9423],
+  103:[0,0,23598,13629,9572],
+  102:[0,0,23742,13752,9726],
+  101:[0,0,23889,13881,9887],
+  100:[0,0,24040,14014,10062],
+  99:[0,0,24188,14148,10215],
+  98:[0,0,24405,14326,19312],
+  97:[0,0,24595,14489,19553],
+  96:[0,0,24779,14655,19750],
+  95:[0,0,24968,14821,19950],
+  94:[0,0,25159,14989,20148],
+  93:[0,0,25353,15159,20351],
+  92:[0,0,25541,15333,20551],
+  91:[0,0,25730,15512,20755],
+  90:[0,0,25917,15693,20968],
+  89:[0,0,26103,15871,21167],
+  88:[0,0,26291,16051,21375],
+  87:[0,0,26479,16227,21582],
+  86:[0,0,26667,16407,21805],
+  85:[0,0,26854,16584,22024],
+  84:[0,0,27043,16761,22244],
+  83:[0,0,27227,16939,22473],
+  82:[0,0,27416,17117,22700],
+  81:[0,0,27605,17295,22925],
+  80:[0,0,27796,17478,23148],
+  79:[0,0,27991,17659,23371],
+  78:[0,0,28175,17843,23603],
+  77:[0,0,28370,18025,23843],
+  76:[0,0,28565,18210,24089],
+  75:[0,0,28756,18397,24324],
+  74:[0,0,28947,18583,24564],
+  73:[0,0,29138,18769,24806],
+  72:[0,0,29335,18954,25054],
+  71:[0,0,29533,19144,25306],
+  70:[0,0,29734,19338,25571],
+  69:[0,0,29935,19530,25836],
+  68:[0,0,30135,19722,26104],
+  67:[0,0,30338,19916,26374],
+  66:[0,0,30542,20112,26649],
+  65:[0,0,30748,20308,26928],
+  64:[0,0,30957,20504,27217],
+  63:[0,0,31165,20703,27507],
+  62:[0,0,31374,20901,27807],
+  61:[0,0,31580,21104,28113],
+  60:[0,0,31789,21304,28430],
+  59:[0,0,31998,21510,28749],
+  58:[0,0,32210,21715,29071],
+  57:[0,0,32424,21920,29401],
+  56:[0,0,32638,22127,29741],
+  55:[0,0,32851,22338,30083],
+  54:[0,0,33066,22548,30428],
+  53:[0,0,33283,22759,30788],
+  52:[0,0,33500,22974,31152],
+  51:[0,0,33716,23191,31521],
+  50:[0,0,33935,23412,31899],
+  49:[0,0,34156,23633,32284],
+  48:[0,0,34378,23856,32676],
+  47:[0,0,34601,24083,33074],
+  46:[0,0,34827,24312,33479],
+  45:[0,0,35056,24542,33894],
+  44:[0,0,35287,24774,34319],
+  43:[0,0,35519,25013,34751],
+  42:[0,0,35756,25253,35195],
+  41:[0,0,35995,25496,35648],
+  40:[0,0,36238,25740,36113],
+  39:[0,0,36481,25989,36590],
+  38:[0,0,36728,26237,37073],
+  37:[0,0,36977,26491,37575],
+  36:[0,0,37232,26749,38089],
+  35:[0,0,37490,27013,38616],
+  34:[0,0,37751,27281,39148],
+  33:[0,0,38017,27555,39699],
+  32:[0,0,38287,27834,40259],
+  31:[0,0,38558,28115,40824],
+  30:[0,0,38837,28401,41410],
+  29:[0,0,39117,28692,42005],
+  28:[0,0,39401,28989,42619],
+  27:[0,0,39693,29294,43251],
+  26:[0,0,39988,29601,43891],
+  25:[0,0,40286,29915,44547],
+  24:[0,0,40592,30232,45218],
+  23:[0,0,40901,30557,45907],
+  22:[0,0,41218,30887,46616],
+  21:[0,0,41538,31218,47341],
+  20:[0,0,41863,31556,48086],
+  19:[0,0,42193,31900,48854],
+  18:[0,0,42531,32251,49642],
+  17:[0,0,42876,32608,50454],
+  16:[0,0,43229,32975,51289],
+  15:[0,0,43590,33352,52151],
+  14:[0,0,43961,33738,53045],
+  13:[0,0,44343,34130,53979],
+  12:[0,0,44734,34533,54946],
+  11:[0,0,45139,34951,55957],
+  10:[0,0,45564,35382,57019],
+  9:[0,0,46004,35828,58139],
+  8:[0,0,46463,36290,59316],
+  7:[0,0,46946,36768,60568],
+  6:[0,0,47452,37270,61892],
+  5:[82264,54528,78143,106633,123814],
+  4:[85450,55823,82618,110301,131392],
+  3:[88636,62842,87217,116105,138472],
+  2:[89835,66573,92178,123617,145703],
+  1:[91034,71406,97758,131487,152402],
+  0:[92233,75121,104366,140779,159223],
+  '-1':[93718,77305,109777,146022,164418],
+  '-2':[95203,79079,113942,151738,168077],
+  '-3':[96284,82590,117384,159711,171396],
+  '-4':[97365,85381,119019,166626,174643],
+  '-5':[100648,88250,125685,171420,178524],
+  '-6':[102910,90822,130937,172796,181327],
+  '-7':[105173,92489,135652,173514,183790],
+  '-8':[107054,93218,139125,173878,185312],
+  '-9':[107861,null,140660,174954,185316],
+  '-10':[null,null,140852,175959,185316]
+};
 
 let _histCharts = {};
 
@@ -756,17 +979,21 @@ function exportXLS() {
   if (!_rawShows.length) { alert('Nenhum dado disponível para exportar.'); return; }
   if (typeof XLSX === 'undefined') { alert('SheetJS carregando, tente em breve.'); return; }
 
-  const wsData = [['ID Evento','Local','Produto','Data Festival','Horário Saída','Ingressos','Subtotal (R$)','Taxa (R$)','Total (R$)']];
-  _rawShows.forEach(r => wsData.push([
-    r.evId, r.local, 'Primeira Classe Rock in Rio - ' + r.local,
+  // Use allShows (all events, including zero-sales) if available, else fall back to rawShows
+  const showsForXLS = (_allShows && _allShows.length > 0 ? _allShows : _rawShows)
+    .sort((a, b) => (a.date + a.time + (a.local || '')).localeCompare(b.date + b.time + (b.local || '')));
+
+  const wsData = [['ID Evento','Nome do Evento','Local','Produto','Setor','Data Festival','Horário Saída','Ingressos','Subtotal (R$)','Taxa (R$)','Total (R$)']];
+  showsForXLS.forEach(r => wsData.push([
+    r.evId, r.eventName || r.local, r.local, r.productName || r.local, r.sectorName || '',
     r.date, r.time, r.tks, r.subtotal, r.taxa, +(r.subtotal + r.taxa).toFixed(2)
   ]));
   const totS = _rawShows.reduce((s,r)=>s+r.subtotal,0);
   const totT = _rawShows.reduce((s,r)=>s+r.taxa,0);
-  wsData.push(['','','','','TOTAL',_rawShows.reduce((s,r)=>s+r.tks,0),+totS.toFixed(2),+totT.toFixed(2),+(totS+totT).toFixed(2)]);
+  wsData.push(['','','','','','TOTAL',_rawShows.reduce((s,r)=>s+r.tks,0),+totS.toFixed(2),+totT.toFixed(2),+(totS+totT).toFixed(2)]);
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{wch:10},{wch:32},{wch:42},{wch:14},{wch:12},{wch:10},{wch:14},{wch:12},{wch:14}];
+  ws['!cols'] = [{wch:10},{wch:36},{wch:28},{wch:36},{wch:20},{wch:14},{wch:12},{wch:10},{wch:14},{wch:12},{wch:14}];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Shows Detalhados');
@@ -791,37 +1018,76 @@ function exportComparativo() {
 
   const wb = XLSX.utils.book_new();
 
-  // ── Sheet 1: Dia a Dia 2026 ──────────────────────────────
-  const salesByDate = (_data.salesByDate || []).filter(d => d.tks !== 0);
+  // ── Sheet 1: Comparativo Dia a Dia (todos os anos) ───────
+  // Converter salesByDate 2026 para cumulative por contagem regressiva
+  const FESTIVAL_2026 = new Date('2026-09-04T12:00:00');
+  const salesByDate = (_data.salesByDate || []);
+  // Build cumulative 2026 by countdown
+  const cum2026 = {};
+  let running = 0;
+  // sort ascending
+  const sorted = [...salesByDate].sort((a,b) => a.date.localeCompare(b.date));
+  for (const row of sorted) {
+    const d = new Date(row.date + 'T12:00:00');
+    const cd = Math.round((FESTIVAL_2026 - d) / 86400000);
+    running += row.tks;
+    cum2026[cd] = Math.max(running, 0);
+  }
+  // Forward-fill: for each countdown from 180 down to -10
+  const full2026 = {};
+  let last = 0;
+  for (let cd = 180; cd >= -10; cd--) {
+    if (cum2026[cd] !== undefined) last = cum2026[cd];
+    full2026[cd] = last > 0 ? last : null;
+  }
+
+  // Build comparison sheet
+  const compRows = [
+    ['# p/ Festival', '2015', '2017', '2019', '2022', '2024', '2026 (atual)']
+  ];
+  for (let cd = 180; cd >= -10; cd--) {
+    const cdKey = cd < 0 ? String(cd) : cd;
+    const hist = HIST_COUNTDOWN[cdKey] || [null,null,null,null,null];
+    const v2026 = full2026[cd] || null;
+    // Skip rows where all years are null/0
+    const allZero = hist.every(v => !v) && !v2026;
+    if (allZero) continue;
+    const label = cd === 0 ? '0 (1º dia)' : cd < 0 ? `${cd} (${Math.abs(cd)}º dia)` : cd;
+    compRows.push([label, hist[0]||null, hist[1]||null, hist[2]||null, hist[3]||null, hist[4]||null, v2026]);
+  }
+  const ws1 = XLSX.utils.aoa_to_sheet(compRows);
+  ws1['!cols'] = [{wch:16},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Comparativo Dia a Dia');
+
+  // ── Sheet 2: Vendas Diárias 2026 (detalhe) ───────────────
   const diasRows = [
     ['Data de Venda', 'Dia da Semana', 'Vendas do Dia', 'Cancelamentos do Dia',
-     'Líquido do Dia', 'Acumulado (Vendas)', 'Receita do Dia (R$)', 'Receita Acumulada (R$)']
+     'Líquido do Dia', 'Acumulado (Vendas)', 'Receita do Dia (R$)', 'Receita Acumulada (R$)',
+     '# p/ Festival']
   ];
-  const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   let cumTks = 0, cumRev = 0;
-  for (const row of salesByDate) {
+  for (const row of sorted.filter(d => d.tks !== 0)) {
     const dt = new Date(row.date + 'T12:00:00');
-    const diaSemana = dias[dt.getDay()];
+    const cd = Math.round((FESTIVAL_2026 - dt) / 86400000);
     const liq = row.tks;
     cumTks += liq;
     cumRev += row.revenue;
     diasRows.push([
-      row.date, diaSemana,
+      row.date, diasSemana[dt.getDay()],
       liq > 0 ? liq : 0,
       liq < 0 ? Math.abs(liq) : 0,
-      liq,
-      cumTks,
-      +row.revenue.toFixed(2),
-      +cumRev.toFixed(2)
+      liq, cumTks,
+      +row.revenue.toFixed(2), +cumRev.toFixed(2),
+      cd
     ]);
   }
-  // Total row
-  diasRows.push(['', 'TOTAL', '', '', cumTks, cumTks, +cumRev.toFixed(2), +cumRev.toFixed(2)]);
-  const ws1 = XLSX.utils.aoa_to_sheet(diasRows);
-  ws1['!cols'] = [{wch:14},{wch:14},{wch:16},{wch:22},{wch:16},{wch:20},{wch:20},{wch:22}];
-  XLSX.utils.book_append_sheet(wb, ws1, 'Dia a Dia 2026');
+  diasRows.push(['', 'TOTAL', '', '', cumTks, cumTks, +cumRev.toFixed(2), +cumRev.toFixed(2), '']);
+  const ws2dia = XLSX.utils.aoa_to_sheet(diasRows);
+  ws2dia['!cols'] = [{wch:14},{wch:14},{wch:16},{wch:22},{wch:14},{wch:18},{wch:20},{wch:22},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws2dia, 'Vendas Diárias 2026');
 
-  // ── Sheet 2: Comparativo Histórico ──────────────────────
+  // ── Sheet 3: Comparativo Histórico ──────────────────────
   const cur2026 = {
     year: 2026,
     vendas:   _data.totalSold    || 0,
@@ -864,11 +1130,11 @@ function exportComparativo() {
     histRows.push([r.year === 2026 ? '2026 (atual)' : r.year, pctV, pctR]);
   }
 
-  const ws2 = XLSX.utils.aoa_to_sheet(histRows);
-  ws2['!cols'] = [{wch:16},{wch:10},{wch:18},{wch:14},{wch:26},{wch:4},{wch:18},{wch:16},{wch:16},{wch:16}];
-  XLSX.utils.book_append_sheet(wb, ws2, 'Comparativo Histórico');
+  const ws3hist = XLSX.utils.aoa_to_sheet(histRows);
+  ws3hist['!cols'] = [{wch:16},{wch:10},{wch:18},{wch:14},{wch:26},{wch:4},{wch:18},{wch:16},{wch:16},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws3hist, 'Comparativo Histórico');
 
-  // ── Sheet 3: Progresso vs Histórico ─────────────────────
+  // ── Sheet 4: Progresso vs Histórico ─────────────────────
   const progRows = [
     ['Ano de Referência', 'Total de Vendas Históricas', 'Vendas 2026 até agora',
      '% Atingido', 'Faltam (ingressos)', 'Receita Histórica (R$)', 'Receita 2026 até agora (R$)', '% Receita Atingida']
@@ -887,11 +1153,11 @@ function exportComparativo() {
       +(rev2026 / r.receita * 100).toFixed(1) + '%'
     ]);
   }
-  const ws3 = XLSX.utils.aoa_to_sheet(progRows);
-  ws3['!cols'] = [{wch:20},{wch:24},{wch:22},{wch:14},{wch:20},{wch:22},{wch:26},{wch:20}];
-  XLSX.utils.book_append_sheet(wb, ws3, 'Progresso vs Histórico');
+  const ws4prog = XLSX.utils.aoa_to_sheet(progRows);
+  ws4prog['!cols'] = [{wch:20},{wch:24},{wch:22},{wch:14},{wch:20},{wch:22},{wch:26},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws4prog, 'Progresso vs Histórico');
 
-  // ── Sheet 4: Por Local de Venda ──────────────────────────
+  // ── Sheet 5: Por Local de Venda ──────────────────────────
   const localMap = {};
   for (const s of _rawShows) {
     const k = (s.eventName || s.local || '').replace('Primeira Classe Rock in Rio - ', '');
@@ -910,9 +1176,9 @@ function exportComparativo() {
       +(v.tks / totalTks * 100).toFixed(1) + '%'
     ]));
   localRows.push(['TOTAL', totalTks, '', '', +rev2026.toFixed(2), '100%']);
-  const ws4 = XLSX.utils.aoa_to_sheet(localRows);
-  ws4['!cols'] = [{wch:40},{wch:20},{wch:16},{wch:12},{wch:18},{wch:12}];
-  XLSX.utils.book_append_sheet(wb, ws4, 'Por Local de Venda');
+  const ws5local = XLSX.utils.aoa_to_sheet(localRows);
+  ws5local['!cols'] = [{wch:40},{wch:20},{wch:16},{wch:12},{wch:18},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws5local, 'Por Local de Venda');
 
   const today = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `comparativo-rir-${today}.xlsx`);
