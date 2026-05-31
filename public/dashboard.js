@@ -1022,20 +1022,35 @@ function exportXLS() {
       }
     }
   }
-  const totS = _rawShows.reduce((s,r)=>s+r.subtotal,0);
-  const totT = _rawShows.reduce((s,r)=>s+r.taxa,0);
-  wsData.push(['','','','','','TOTAL',_rawShows.reduce((s,r)=>s+r.tks,0),+totS.toFixed(2),+totT.toFixed(2),+(totS+totT).toFixed(2)]);
+  // Compute totals from the wsData rows already built (ensures consistency between tabs)
+  let totTks = 0, totSub = 0, totTax = 0;
+  for (let i = 1; i < wsData.length; i++) {
+    totTks += wsData[i][4] || 0;
+    totSub += wsData[i][5] || 0;
+    totTax += wsData[i][6] || 0;
+  }
+  wsData.push(['','','','TOTAL', totTks, +totSub.toFixed(2), +totTax.toFixed(2), +(totSub+totTax).toFixed(2)]);
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{wch:10},{wch:36},{wch:28},{wch:36},{wch:20},{wch:14},{wch:12},{wch:10},{wch:14},{wch:12},{wch:14}];
+  ws['!cols'] = [{wch:32},{wch:48},{wch:14},{wch:14},{wch:18},{wch:14},{wch:12},{wch:14}];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Shows Detalhados');
 
+  // Build Resumo from wsData (same source as detailed tab — guaranteed to match)
   const sum = [['Local','Ingressos','Subtotal (R$)','Taxa (R$)','Total (R$)']];
   const bl = {};
-  _rawShows.forEach(r => { if(!bl[r.local]) bl[r.local]={t:0,s:0,x:0}; bl[r.local].t+=r.tks; bl[r.local].s+=r.subtotal; bl[r.local].x+=r.taxa; });
+  for (let i = 1; i < wsData.length - 1; i++) { // skip header and TOTAL row
+    const row = wsData[i];
+    const loc = row[0];
+    if (!bl[loc]) bl[loc] = {t:0,s:0,x:0};
+    bl[loc].t += row[4] || 0;
+    bl[loc].s += row[5] || 0;
+    bl[loc].x += row[6] || 0;
+  }
   Object.entries(bl).sort((a,b)=>b[1].t-a[1].t).forEach(([l,v])=>sum.push([l,v.t,+v.s.toFixed(2),+v.x.toFixed(2),+(v.s+v.x).toFixed(2)]));
+  // Add total row to Resumo
+  sum.push(['TOTAL', totTks, +totSub.toFixed(2), +totTax.toFixed(2), +(totSub+totTax).toFixed(2)]);
   const ws2 = XLSX.utils.aoa_to_sheet(sum);
   ws2['!cols'] = [{wch:32},{wch:12},{wch:14},{wch:12},{wch:14}];
   XLSX.utils.book_append_sheet(wb, ws2, 'Resumo por Local');
