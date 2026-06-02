@@ -1032,6 +1032,17 @@ function exportXLS() {
       wsData.push([suffix, fullName, date, time, r.tks, +r.subtotal.toFixed(2), +r.taxa.toFixed(2), +(r.subtotal+r.taxa).toFixed(2)]);
     }
   }
+  // Sort by: Local (col 0) → Data Festival (col 2) → Horário Saída (col 3)
+  const header = wsData.shift();
+  wsData.sort((a, b) => {
+    const localCmp = a[0].localeCompare(b[0], 'pt-BR');
+    if (localCmp !== 0) return localCmp;
+    const dateCmp = a[2].localeCompare(b[2]);
+    if (dateCmp !== 0) return dateCmp;
+    return a[3].localeCompare(b[3]);
+  });
+  wsData.unshift(header);
+
   // Compute totals from the wsData rows already built (ensures consistency between tabs)
   let totTks = 0, totSub = 0, totTax = 0;
   for (let i = 1; i < wsData.length; i++) {
