@@ -486,6 +486,11 @@ app.get('/eventos', requireAuth, (req, res) => {
   res.send(getEventosHTML(req.session.user));
 });
 
+// ── Sub-page: Eventos Lotados ────────────────
+app.get('/lotados', requireAuth, (req, res) => {
+  res.send(getLotadosHTML(req.session.user));
+});
+
 // ─────────────────────────────────────────────
 // SHARED CSS VARIABLES (dark theme)
 // ─────────────────────────────────────────────
@@ -724,6 +729,11 @@ ${SHARED_HEADER_CSS}
   <a href="/eventos" class="nav-card">
     <div class="nav-card-icon">🗓️</div>
     <div><div class="nav-card-title">Lista de Eventos</div><div class="nav-card-desc">Todos os shows com status de ocupação</div></div>
+    <div class="nav-card-arrow">›</div>
+  </a>
+  <a href="/lotados" class="nav-card" style="border-color:#e6394644">
+    <div class="nav-card-icon">🚨</div>
+    <div><div class="nav-card-title">Eventos Lotados</div><div class="nav-card-desc">Horários esgotados e novos horários</div></div>
     <div class="nav-card-arrow">›</div>
   </a>
 </div>
@@ -1125,9 +1135,9 @@ function getEventosHTML(username) {
     '2026-09-05': 'Sábado, 05 de Setembro',
     '2026-09-06': 'Domingo, 06 de Setembro',
     '2026-09-07': 'Segunda-feira, 07 de Setembro',
-    '2026-09-11': 'Quinta-feira, 11 de Setembro',
-    '2026-09-12': 'Sexta-feira, 12 de Setembro',
-    '2026-09-13': 'Sábado, 13 de Setembro',
+    '2026-09-11': 'Sexta-feira, 11 de Setembro',
+    '2026-09-12': 'Sábado, 12 de Setembro',
+    '2026-09-13': 'Domingo, 13 de Setembro',
   };
 
   return `<!DOCTYPE html>
@@ -1389,6 +1399,291 @@ async function loadData() {
 }
 document.addEventListener('DOMContentLoaded', loadData);
 </script>
+</body></html>`;
+}
+
+// ─────────────────────────────────────────────
+// SUB-PAGE: EVENTOS LOTADOS
+// ─────────────────────────────────────────────
+function getLotadosHTML(username) {
+  const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
+                          '2026-09-11','2026-09-12','2026-09-13'];
+  const DATE_LABELS = {
+    '2026-09-04':'Sex 04/Set','2026-09-05':'Sáb 05/Set','2026-09-06':'Dom 06/Set',
+    '2026-09-07':'Seg 07/Set','2026-09-11':'Sex 11/Set','2026-09-12':'Sáb 12/Set',
+    '2026-09-13':'Dom 13/Set'
+  };
+  const CAP = 46;
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Eventos Lotados — Rock in Rio 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>
+<style>
+${SHARED_CSS_VARS}
+${SHARED_HEADER_CSS}
+  .page-wrap{padding:20px 32px 48px}
+  .section-title{font-size:18px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+  .section-sub{font-size:13px;color:var(--muted);margin-bottom:20px}
+  .summary-bar{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 20px;
+    display:flex;gap:24px;flex-wrap:wrap;align-items:center;margin-bottom:24px}
+  .summary-item{display:flex;flex-direction:column;gap:2px}
+  .summary-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+  .summary-value{font-size:20px;font-weight:800}
+  .summary-sep{width:1px;background:var(--border);align-self:stretch}
+
+  .lotados-table{width:100%;border-collapse:collapse;margin-bottom:32px;font-size:13px}
+  .lotados-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);
+    padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+  .lotados-table td{padding:10px 12px;border-bottom:1px solid #1e2535;vertical-align:middle}
+  .lotados-table tr:hover td{background:var(--surface2)}
+  .tag-date{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap}
+  .tag-time{font-family:monospace;font-size:13px;font-weight:700;color:var(--text)}
+  .tag-new{font-family:monospace;font-size:13px;font-weight:700;color:#2ec27e}
+  .badge-lotado{background:#e6394622;color:#e63946;border:1px solid #e6394644;border-radius:4px;
+    font-size:10px;font-weight:800;letter-spacing:.8px;padding:2px 7px;text-transform:uppercase}
+  .btn-aceitar{background:#2ec27e22;color:#2ec27e;border:1px solid #2ec27e55;border-radius:7px;
+    font-size:12px;font-weight:700;padding:6px 16px;cursor:pointer;transition:.2s;white-space:nowrap}
+  .btn-aceitar:hover{background:#2ec27e33;border-color:#2ec27e}
+  .btn-aceitar.aceito{background:#2ec27e;color:#000;border-color:#2ec27e;cursor:default}
+  .btn-aceitar.aceito:hover{background:#2ec27e}
+
+  .aceitos-section{background:var(--surface);border:1px solid #2ec27e44;border-radius:14px;padding:24px;margin-top:8px}
+  .aceitos-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+  .aceitos-title{font-size:16px;font-weight:800;color:#2ec27e;display:flex;align-items:center;gap:8px}
+  .aceitos-actions{display:flex;gap:10px;flex-wrap:wrap}
+  .btn-export{background:#5b8dee22;color:#5b8dee;border:1px solid #5b8dee55;border-radius:8px;
+    font-size:13px;font-weight:700;padding:8px 20px;cursor:pointer;transition:.2s}
+  .btn-export:hover{background:#5b8dee33}
+  .btn-limpar{background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px;
+    font-size:13px;font-weight:600;padding:8px 16px;cursor:pointer;transition:.2s}
+  .btn-limpar:hover{color:var(--accent);border-color:var(--accent)}
+  .aceitos-table{width:100%;border-collapse:collapse;font-size:13px}
+  .aceitos-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);
+    padding:8px 12px;border-bottom:1px solid #2ec27e33}
+  .aceitos-table td{padding:10px 12px;border-bottom:1px solid #1e2535;vertical-align:middle}
+  .aceitos-table tr:last-child td{border-bottom:none}
+  .empty-msg{text-align:center;padding:32px;color:var(--muted);font-size:13px}
+  .no-data-msg{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+
+  @media(max-width:768px){
+    .page-wrap{padding:16px 16px 40px}
+    .lotados-table,.aceitos-table{font-size:12px}
+    .lotados-table th,.lotados-table td,.aceitos-table th,.aceitos-table td{padding:8px 8px}
+  }
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><span>Carregando eventos lotados...</span></div>
+
+<header>
+  <div class="header-left">
+    <div class="logo-badge">RiR 2026</div>
+    <div><h1>Eventos Lotados</h1><p>Horários esgotados e sugestão de novos horários</p></div>
+  </div>
+  <div class="header-right">
+    <a href="/" class="btn btn-back">← Voltar ao Dashboard</a>
+  </div>
+</header>
+<div id="status-bar">
+  <div id="status-dot" class="status-dot"></div>
+  <span id="status-text">Carregando...</span>
+</div>
+
+<div class="page-wrap" id="app"></div>
+
+<script>
+const CAP = ${CAP};
+const FESTIVAL_DATES = ${JSON.stringify(FESTIVAL_DATES)};
+const DATE_LABELS = ${JSON.stringify(DATE_LABELS)};
+const LS_KEY = 'rir2026_novos_horarios';
+
+function addMinutes(t, mins) {
+  const [h, m] = t.split(':').map(Number);
+  const tot = h * 60 + m + mins;
+  return String(Math.floor(tot/60)).padStart(2,'0') + ':' + String(tot % 60).padStart(2,'0');
+}
+
+function getAceitos() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
+}
+function saveAceitos(arr) {
+  localStorage.setItem(LS_KEY, JSON.stringify(arr));
+}
+
+function isAceito(local, date, novoHorario) {
+  return getAceitos().some(a => a.local === local && a.date === date && a.novoHorario === novoHorario);
+}
+
+function aceitar(local, eventName, date, horarioOriginal, novoHorario, btnId) {
+  const aceitos = getAceitos();
+  if (!aceitos.some(a => a.local === local && a.date === date && a.novoHorario === novoHorario)) {
+    aceitos.push({ local, eventName, date, horarioOriginal, novoHorario, aceitoEm: new Date().toISOString() });
+    saveAceitos(aceitos);
+  }
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.textContent = '✓ Aceito'; btn.classList.add('aceito'); btn.disabled = true; }
+  renderAceitos();
+}
+
+function renderAceitos() {
+  const aceitos = getAceitos();
+  const container = document.getElementById('aceitos-container');
+  if (!container) return;
+  const count = document.getElementById('aceitos-count');
+  if (count) count.textContent = aceitos.length;
+
+  if (aceitos.length === 0) {
+    container.innerHTML = '<div class="empty-msg">Nenhum novo horário aceito ainda. Clique em "Aceitar" nos eventos lotados acima.</div>';
+    return;
+  }
+
+  let html = '<table class="aceitos-table"><thead><tr>' +
+    '<th>Local</th><th>Data</th><th>Horário Original</th><th>Novo Horário</th><th>Aceito em</th>' +
+    '</tr></thead><tbody>';
+  for (const a of aceitos) {
+    const dt = new Date(a.aceitoEm);
+    const dtStr = dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+    const dateLabel = DATE_LABELS[a.date] || a.date;
+    html += \`<tr>
+      <td><strong>\${a.local}</strong></td>
+      <td><span class="tag-date">\${dateLabel}</span></td>
+      <td><span class="tag-time">\${a.horarioOriginal}</span></td>
+      <td><span class="tag-new">🕐 \${a.novoHorario}</span></td>
+      <td style="color:var(--muted);font-size:11px">\${dtStr}</td>
+    </tr>\`;
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function limparAceitos() {
+  if (!confirm('Tem certeza que deseja limpar todos os novos horários aceitos?')) return;
+  saveAceitos([]);
+  renderAceitos();
+  // Reset all buttons
+  document.querySelectorAll('.btn-aceitar.aceito').forEach(btn => {
+    btn.textContent = 'Aceitar';
+    btn.classList.remove('aceito');
+    btn.disabled = false;
+  });
+}
+
+function exportarXLS() {
+  const aceitos = getAceitos();
+  if (aceitos.length === 0) { alert('Nenhum horário aceito para exportar.'); return; }
+  if (typeof XLSX === 'undefined') { alert('SheetJS carregando, tente em breve.'); return; }
+
+  const wsData = [['Local', 'Nome Completo do Evento', 'Data Festival', 'Horário Original (Lotado)', 'Novo Horário Sugerido', 'Aceito em']];
+  for (const a of aceitos) {
+    wsData.push([a.local, a.eventName || a.local, a.date, a.horarioOriginal, a.novoHorario, new Date(a.aceitoEm).toLocaleString('pt-BR')]);
+  }
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:32},{wch:48},{wch:14},{wch:22},{wch:20},{wch:20}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Novos Horários');
+  XLSX.writeFile(wb, 'novos-horarios-rock-in-rio-' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+function render(rawShows) {
+  // Find sold-out slots: tks >= CAP
+  const lotados = rawShows.filter(s => (s.tks || 0) >= CAP && s.date && s.time);
+
+  // Sort: date → local → time
+  lotados.sort((a, b) => (a.date||'').localeCompare(b.date||'') || (a.local||'').localeCompare(b.local||'', 'pt-BR') || (a.time||'').localeCompare(b.time||''));
+
+  let html = '';
+
+  // Summary bar
+  html += \`<div class="summary-bar">
+    <div class="summary-item">
+      <div class="summary-label">Eventos Lotados</div>
+      <div class="summary-value" style="color:var(--accent)">\${lotados.length}</div>
+    </div>
+    <div class="summary-sep"></div>
+    <div class="summary-item">
+      <div class="summary-label">Ingressos Esgotados</div>
+      <div class="summary-value">\${lotados.reduce((s,r)=>s+(r.tks||0),0).toLocaleString('pt-BR')}</div>
+    </div>
+    <div class="summary-sep"></div>
+    <div class="summary-item">
+      <div class="summary-label">Locais Afetados</div>
+      <div class="summary-value">\${new Set(lotados.map(s=>s.local)).size}</div>
+    </div>
+  </div>\`;
+
+  if (lotados.length === 0) {
+    html += '<div class="no-data-msg">🎉 Nenhum evento com lotação esgotada no momento.</div>';
+    document.getElementById('app').innerHTML = html;
+    document.getElementById('loading').classList.add('hidden');
+    return;
+  }
+
+  // Sold-out table
+  html += \`<div class="section-title">🚨 Horários Esgotados</div>
+  <div class="section-sub">Eventos com \${CAP} de \${CAP} ingressos vendidos — capacidade máxima atingida</div>
+  <div style="overflow-x:auto">
+  <table class="lotados-table">
+    <thead><tr>
+      <th>Local</th><th>Data</th><th>Horário Lotado</th><th>Vendidos</th><th>Novo Horário (+10 min)</th><th>Ação</th>
+    </tr></thead><tbody>\`;
+
+  const aceitos = getAceitos();
+  lotados.forEach((s, i) => {
+    const novoH = addMinutes(s.time, 10);
+    const btnId = 'btn-' + i;
+    const jaAceito = isAceito(s.local, s.date, novoH);
+    const dateLabel = DATE_LABELS[s.date] || s.date;
+    html += \`<tr>
+      <td><strong>\${s.local}</strong></td>
+      <td><span class="tag-date">\${dateLabel}</span></td>
+      <td><span class="tag-time">\${s.time}</span> <span class="badge-lotado">Lotado</span></td>
+      <td style="color:var(--accent);font-weight:800">\${s.tks}/\${CAP}</td>
+      <td><span class="tag-new">🕐 \${novoH}</span></td>
+      <td><button class="btn-aceitar\${jaAceito?' aceito':''}" id="\${btnId}" \${jaAceito?'disabled':''}\
+        onclick="aceitar('\${s.local.replace(/'/g,"\\\\'")}','\${(s.eventName||s.local).replace(/'/g,"\\\\'")}','\${s.date}','\${s.time}','\${novoH}','\${btnId}')">\
+        \${jaAceito?'✓ Aceito':'Aceitar'}</button></td>
+    </tr>\`;
+  });
+
+  html += '</tbody></table></div>';
+
+  // Accepted section
+  html += \`<div class="aceitos-section">
+    <div class="aceitos-header">
+      <div class="aceitos-title">✅ Novos Horários Aceitos &nbsp;<span id="aceitos-count" style="background:#2ec27e;color:#000;border-radius:12px;padding:1px 10px;font-size:13px">0</span></div>
+      <div class="aceitos-actions">
+        <button class="btn-export" onclick="exportarXLS()">📥 Exportar XLS</button>
+        <button class="btn-limpar" onclick="limparAceitos()">🗑️ Limpar Lista</button>
+      </div>
+    </div>
+    <div id="aceitos-container"></div>
+  </div>\`;
+
+  document.getElementById('app').innerHTML = html;
+  renderAceitos();
+  document.getElementById('loading').classList.add('hidden');
+}
+
+async function loadData() {
+  try {
+    const res  = await fetch('/api/data');
+    const json = await res.json();
+    if (!json.data) throw new Error('Sem dados');
+    render(json.data.rawShows || []);
+    document.getElementById('status-dot').className = 'status-dot green';
+    document.getElementById('status-text').textContent = 'Dados ao vivo · ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '—');
+  } catch(e) {
+    document.getElementById('status-dot').className = 'status-dot red';
+    document.getElementById('status-text').textContent = 'Erro: ' + e.message;
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+document.addEventListener('DOMContentLoaded', loadData);
+<\/script>
 </body></html>`;
 }
 
