@@ -1588,15 +1588,28 @@ function exportarXLS() {
   XLSX.writeFile(wb, 'novos-horarios-rock-in-rio-' + new Date().toISOString().slice(0,10) + '.xlsx');
 }
 
+// Extract the true boarding location name from a rawShow entry
+function getLocalEmbarque(s) {
+  const PREFIX_EVENT = 'Primeira Classe Rock in Rio - ';
+  const PREFIX_EMBAR = 'EMBARQUE: ';
+  if (s.sectorName && s.sectorName.startsWith(PREFIX_EMBAR))
+    return s.sectorName.replace(PREFIX_EMBAR, '').trim();
+  if (s.productName && s.productName.startsWith(PREFIX_EMBAR))
+    return s.productName.replace(PREFIX_EMBAR, '').trim();
+  if (s.eventName && s.eventName.startsWith(PREFIX_EVENT))
+    return s.eventName.replace(PREFIX_EVENT, '').trim();
+  return s.local || s.eventName || '—';
+}
+
 function render(rawShows) {
-  // Build set of all existing slots: "local|date|time"
-  const existingSlots = new Set(rawShows.map(s => \`\${s.local}|\${s.date}|\${s.time}\`));
+  // Build set of all existing slots keyed by "localEmbarque|date|time"
+  const existingSlots = new Set(rawShows.map(s => \`\${getLocalEmbarque(s)}|\${s.date}|\${s.time}\`));
 
   // Returns suggested new time and offset used; avoids existing slots
-  function suggestTime(local, date, origTime) {
+  function suggestTime(localEmbarque, date, origTime) {
     for (const mins of [10, 5, 15, 20]) {
       const candidate = addMinutes(origTime, mins);
-      if (!existingSlots.has(\`\${local}|\${date}|\${candidate}\`)) {
+      if (!existingSlots.has(\`\${localEmbarque}|\${date}|\${candidate}\`)) {
         return { time: candidate, mins };
       }
     }
@@ -1606,12 +1619,13 @@ function render(rawShows) {
   // Find sold-out slots: tks >= CAP
   const lotados = rawShows.filter(s => (s.tks || 0) >= CAP && s.date && s.time);
 
-  // Sort: date → local → time
-  lotados.sort((a, b) => (a.date||'').localeCompare(b.date||'') || (a.local||'').localeCompare(b.local||'', 'pt-BR') || (a.time||'').localeCompare(b.time||''));
+  // Sort: date → localEmbarque → time
+  lotados.sort((a, b) => (a.date||'').localeCompare(b.date||'') || getLocalEmbarque(a).localeCompare(getLocalEmbarque(b), 'pt-BR') || (a.time||'').localeCompare(b.time||''));
 
   let html = '';
 
   // Summary bar
+  const uniqueLocais = new Set(lotados.map(s => getLocalEmbarque(s)));
   html += \`<div class="summary-bar">
     <div class="summary-item">
       <div class="summary-label">Eventos Lotados</div>
@@ -1625,7 +1639,7 @@ function render(rawShows) {
     <div class="summary-sep"></div>
     <div class="summary-item">
       <div class="summary-label">Locais Afetados</div>
-      <div class="summary-value">\${new Set(lotados.map(s=>s.local)).size}</div>
+      <div class="summary-value">\${uniqueLocais.size}</div>
     </div>
   </div>\`;
 
@@ -1645,21 +1659,23 @@ function render(rawShows) {
       <th>Local de Embarque</th><th>Data</th><th>Horário Lotado</th><th>Vendidos</th><th>Novo Horário Sugerido</th><th>Ação</th>
     </tr></thead><tbody>\`;
 
-  const aceitos = getAceitos();
   lotados.forEach((s, i) => {
-    const { time: novoH, mins } = suggestTime(s.local, s.date, s.time);
+    const localEmbarque = getLocalEmbarque(s);
+    const { time: novoH, mins } = suggestTime(localEmbarque, s.date, s.time);
     const btnId = 'btn-' + i;
-    const jaAceito = isAceito(s.local, s.date, novoH);
+    const jaAceito = isAceito(localEmbarque, s.date, novoH);
     const dateLabel = DATE_LABELS[s.date] || s.date;
     const offsetLabel = mins === 10 ? '+10 min' : mins === 5 ? '+5 min (conflito em +10)' : \`+\${mins} min (conflito)\`;
+    const localEsc = localEmbarque.replace(/'/g,"\\\\'");
+    const eventEsc = (s.eventName||localEmbarque).replace(/'/g,"\\\\'");
     html += \`<tr>
-      <td><strong>\${s.local}</strong></td>
+      <td><strong>\${localEmbarque}</strong></td>
       <td><span class="tag-date">\${dateLabel}</span></td>
       <td><span class="tag-time">\${s.time}</span> <span class="badge-lotado">Lotado</span></td>
       <td style="color:var(--accent);font-weight:800">\${s.tks}/\${CAP}</td>
       <td><span class="tag-new">🕐 \${novoH}</span> <span style="font-size:10px;color:var(--muted)">\${offsetLabel}</span></td>
       <td><button class="btn-aceitar\${jaAceito?' aceito':''}" id="\${btnId}" \${jaAceito?'disabled':''}\
-        onclick="aceitar('\${s.local.replace(/'/g,"\\\\'")}','\${(s.eventName||s.local).replace(/'/g,"\\\\'")}','\${s.date}','\${s.time}','\${novoH}','\${btnId}')">\
+        onclick="aceitar('\${localEsc}','\${eventEsc}','\${s.date}','\${s.time}','\${novoH}','\${btnId}')">\
         \${jaAceito?'✓ Aceito':'Aceitar'}</button></td>
     </tr>\`;
   });
