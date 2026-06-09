@@ -1520,13 +1520,31 @@ function isAceito(local, date, novoHorario) {
 
 function aceitar(local, eventName, date, horarioOriginal, novoHorario, btnId) {
   const aceitos = getAceitos();
-  if (!aceitos.some(a => a.local === local && a.date === date && a.novoHorario === novoHorario)) {
+  if (!aceitos.some(a => a.local === local && a.date === date && a.horarioOriginal === horarioOriginal)) {
     aceitos.push({ local, eventName, date, horarioOriginal, novoHorario, aceitoEm: new Date().toISOString() });
     saveAceitos(aceitos);
   }
+  // Remove the row from the sold-out table immediately
   const btn = document.getElementById(btnId);
-  if (btn) { btn.textContent = '✓ Aceito'; btn.classList.add('aceito'); btn.disabled = true; }
+  if (btn) {
+    const row = btn.closest('tr');
+    if (row) {
+      row.style.transition = 'opacity 0.3s';
+      row.style.opacity = '0';
+      setTimeout(() => { row.remove(); updateLotadosCount(); }, 300);
+    }
+  }
   renderAceitos();
+}
+
+function updateLotadosCount() {
+  const remaining = document.querySelectorAll('.lotados-table tbody tr').length;
+  const valEl = document.querySelector('.summary-value[style*="accent"]');
+  if (valEl) valEl.textContent = remaining;
+  if (remaining === 0) {
+    const tableWrap = document.querySelector('.lotados-table')?.closest('div');
+    if (tableWrap) tableWrap.innerHTML = '<div class="no-data-msg" style="padding:24px">🎉 Todos os horários lotados já possuem novo horário aceito!</div>';
+  }
 }
 
 function renderAceitos() {
@@ -1616,8 +1634,15 @@ function render(rawShows) {
     return { time: addMinutes(origTime, 10), mins: 10 }; // fallback
   }
 
-  // Find sold-out slots: tks >= CAP
-  const lotados = rawShows.filter(s => (s.tks || 0) >= CAP && s.date && s.time);
+  // Build set of already-accepted slots: "localEmbarque|date|horarioOriginal"
+  const aceitosSet = new Set(getAceitos().map(a => \`\${a.local}|\${a.date}|\${a.horarioOriginal}\`));
+
+  // Find sold-out slots: tks >= CAP, excluding those already with an accepted new slot
+  const lotados = rawShows.filter(s => {
+    if ((s.tks || 0) < CAP || !s.date || !s.time) return false;
+    const key = \`\${getLocalEmbarque(s)}|\${s.date}|\${s.time}\`;
+    return !aceitosSet.has(key); // hide if already accepted
+  });
 
   // Sort: localEmbarque (A→Z) → date → time
   lotados.sort((a, b) => getLocalEmbarque(a).localeCompare(getLocalEmbarque(b), 'pt-BR') || (a.date||'').localeCompare(b.date||'') || (a.time||'').localeCompare(b.time||''));
