@@ -1589,6 +1589,20 @@ function exportarXLS() {
 }
 
 function render(rawShows) {
+  // Build set of all existing slots: "local|date|time"
+  const existingSlots = new Set(rawShows.map(s => \`\${s.local}|\${s.date}|\${s.time}\`));
+
+  // Returns suggested new time and offset used; avoids existing slots
+  function suggestTime(local, date, origTime) {
+    for (const mins of [10, 5, 15, 20]) {
+      const candidate = addMinutes(origTime, mins);
+      if (!existingSlots.has(\`\${local}|\${date}|\${candidate}\`)) {
+        return { time: candidate, mins };
+      }
+    }
+    return { time: addMinutes(origTime, 10), mins: 10 }; // fallback
+  }
+
   // Find sold-out slots: tks >= CAP
   const lotados = rawShows.filter(s => (s.tks || 0) >= CAP && s.date && s.time);
 
@@ -1628,21 +1642,22 @@ function render(rawShows) {
   <div style="overflow-x:auto">
   <table class="lotados-table">
     <thead><tr>
-      <th>Local de Embarque</th><th>Data</th><th>Horário Lotado</th><th>Vendidos</th><th>Novo Horário (+10 min)</th><th>Ação</th>
+      <th>Local de Embarque</th><th>Data</th><th>Horário Lotado</th><th>Vendidos</th><th>Novo Horário Sugerido</th><th>Ação</th>
     </tr></thead><tbody>\`;
 
   const aceitos = getAceitos();
   lotados.forEach((s, i) => {
-    const novoH = addMinutes(s.time, 10);
+    const { time: novoH, mins } = suggestTime(s.local, s.date, s.time);
     const btnId = 'btn-' + i;
     const jaAceito = isAceito(s.local, s.date, novoH);
     const dateLabel = DATE_LABELS[s.date] || s.date;
+    const offsetLabel = mins === 10 ? '+10 min' : mins === 5 ? '+5 min (conflito em +10)' : \`+\${mins} min (conflito)\`;
     html += \`<tr>
       <td><strong>\${s.local}</strong></td>
       <td><span class="tag-date">\${dateLabel}</span></td>
       <td><span class="tag-time">\${s.time}</span> <span class="badge-lotado">Lotado</span></td>
       <td style="color:var(--accent);font-weight:800">\${s.tks}/\${CAP}</td>
-      <td><span class="tag-new">🕐 \${novoH}</span></td>
+      <td><span class="tag-new">🕐 \${novoH}</span> <span style="font-size:10px;color:var(--muted)">\${offsetLabel}</span></td>
       <td><button class="btn-aceitar\${jaAceito?' aceito':''}" id="\${btnId}" \${jaAceito?'disabled':''}\
         onclick="aceitar('\${s.local.replace(/'/g,"\\\\'")}','\${(s.eventName||s.local).replace(/'/g,"\\\\'")}','\${s.date}','\${s.time}','\${novoH}','\${btnId}')">\
         \${jaAceito?'✓ Aceito':'Aceitar'}</button></td>
