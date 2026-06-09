@@ -51,7 +51,7 @@ function aggregateCrowderData(movements, catalogShows = []) {
   const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
                           '2026-09-11','2026-09-12','2026-09-13'];
   const DATE_LABELS    = ['Sex 04/Set','Sáb 05/Set','Dom 06/Set','Seg 07/Set',
-                          'Qui 11/Set','Sex 12/Set','Sáb 13/Set'];
+                          'Sex 11/Set','Sáb 12/Set','Dom 13/Set'];
 
   // Filter only TICKET movements, optionally restricted to a specific event name
   const tickets = movements.filter(m =>
@@ -320,6 +320,17 @@ function requireAuth(req, res, next) {
 // ── Public: list loaded usernames (no passwords exposed) ────
 app.get('/health/users', (req, res) => {
   res.json({ users: Object.keys(USERS), count: Object.keys(USERS).length });
+});
+
+// ── Debug: proxy Crowder shows catalog ──────
+app.get('/api/debug/shows', requireAuth, async (req, res) => {
+  try {
+    const r = await fetch(`${CROWDER_BASE}/shows/organizer`, { headers: { 'ApiKey': CROWDER_API_KEY } });
+    const text = await r.text();
+    res.json({ status: r.status, body: text.substring(0, 5000) });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
 });
 
 // ── Public health check (no auth) ───────────
