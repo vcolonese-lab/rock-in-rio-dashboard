@@ -1619,8 +1619,8 @@ function render(rawShows) {
   // Find sold-out slots: tks >= CAP
   const lotados = rawShows.filter(s => (s.tks || 0) >= CAP && s.date && s.time);
 
-  // Sort: date → localEmbarque → time
-  lotados.sort((a, b) => (a.date||'').localeCompare(b.date||'') || getLocalEmbarque(a).localeCompare(getLocalEmbarque(b), 'pt-BR') || (a.time||'').localeCompare(b.time||''));
+  // Sort: localEmbarque (A→Z) → date → time
+  lotados.sort((a, b) => getLocalEmbarque(a).localeCompare(getLocalEmbarque(b), 'pt-BR') || (a.date||'').localeCompare(b.date||'') || (a.time||'').localeCompare(b.time||''));
 
   let html = '';
 
