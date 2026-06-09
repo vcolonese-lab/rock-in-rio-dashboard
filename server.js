@@ -1542,7 +1542,7 @@ function renderAceitos() {
   }
 
   let html = '<table class="aceitos-table"><thead><tr>' +
-    '<th>Local</th><th>Data</th><th>Horário Original</th><th>Novo Horário</th><th>Aceito em</th>' +
+    '<th>Local de Embarque</th><th>Data</th><th>Horário Original</th><th>Novo Horário</th><th>Aceito em</th>' +
     '</tr></thead><tbody>';
   for (const a of aceitos) {
     const dt = new Date(a.aceitoEm);
@@ -1577,7 +1577,7 @@ function exportarXLS() {
   if (aceitos.length === 0) { alert('Nenhum horário aceito para exportar.'); return; }
   if (typeof XLSX === 'undefined') { alert('SheetJS carregando, tente em breve.'); return; }
 
-  const wsData = [['Local', 'Nome Completo do Evento', 'Data Festival', 'Horário Original (Lotado)', 'Novo Horário Sugerido', 'Aceito em']];
+  const wsData = [['Local de Embarque', 'Nome Completo do Evento', 'Data Festival', 'Horário Original (Lotado)', 'Novo Horário Sugerido', 'Aceito em']];
   for (const a of aceitos) {
     wsData.push([a.local, a.eventName || a.local, a.date, a.horarioOriginal, a.novoHorario, new Date(a.aceitoEm).toLocaleString('pt-BR')]);
   }
@@ -1628,7 +1628,7 @@ function render(rawShows) {
   <div style="overflow-x:auto">
   <table class="lotados-table">
     <thead><tr>
-      <th>Local</th><th>Data</th><th>Horário Lotado</th><th>Vendidos</th><th>Novo Horário (+10 min)</th><th>Ação</th>
+      <th>Local de Embarque</th><th>Data</th><th>Horário Lotado</th><th>Vendidos</th><th>Novo Horário (+10 min)</th><th>Ação</th>
     </tr></thead><tbody>\`;
 
   const aceitos = getAceitos();
