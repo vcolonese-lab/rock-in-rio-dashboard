@@ -1450,6 +1450,9 @@ ${SHARED_HEADER_CSS}
   .btn-aceitar:hover{background:#2ec27e33;border-color:#2ec27e}
   .btn-aceitar.aceito{background:#2ec27e;color:#000;border-color:#2ec27e;cursor:default}
   .btn-aceitar.aceito:hover{background:#2ec27e}
+  .btn-negar{background:#e6394622;color:#e63946;border:1px solid #e6394655;border-radius:7px;
+    font-size:12px;font-weight:700;padding:6px 14px;cursor:pointer;transition:.2s;white-space:nowrap}
+  .btn-negar:hover{background:#e6394633;border-color:#e63946}
 
   .aceitos-section{background:var(--surface);border:1px solid #2ec27e44;border-radius:14px;padding:24px;margin-top:8px}
   .aceitos-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
@@ -1500,6 +1503,7 @@ const CAP = ${CAP};
 const FESTIVAL_DATES = ${JSON.stringify(FESTIVAL_DATES)};
 const DATE_LABELS = ${JSON.stringify(DATE_LABELS)};
 const LS_KEY = 'rir2026_novos_horarios';
+const LS_KEY_NEG = 'rir2026_negados';
 
 function addMinutes(t, mins) {
   const [h, m] = t.split(':').map(Number);
@@ -1516,6 +1520,25 @@ function saveAceitos(arr) {
 
 function isAceito(local, date, novoHorario) {
   return getAceitos().some(a => a.local === local && a.date === date && a.novoHorario === novoHorario);
+}
+
+function getNegados() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY_NEG) || '[]'); } catch { return []; }
+}
+function saveNegados(arr) { localStorage.setItem(LS_KEY_NEG, JSON.stringify(arr)); }
+
+function negar(local, date, horarioOriginal, rowId) {
+  const negados = getNegados();
+  if (!negados.some(n => n.local === local && n.date === date && n.horarioOriginal === horarioOriginal)) {
+    negados.push({ local, date, horarioOriginal, negadoEm: new Date().toISOString() });
+    saveNegados(negados);
+  }
+  const row = document.getElementById(rowId);
+  if (row) {
+    row.style.transition = 'opacity 0.3s';
+    row.style.opacity = '0';
+    setTimeout(() => { row.remove(); updateLotadosCount(); }, 300);
+  }
 }
 
 function aceitar(local, eventName, date, horarioOriginal, novoHorario, btnId) {
@@ -1634,14 +1657,15 @@ function render(rawShows) {
     return { time: addMinutes(origTime, 10), mins: 10 }; // fallback
   }
 
-  // Build set of already-accepted slots: "localEmbarque|date|horarioOriginal"
+  // Build sets of already-accepted and denied slots: "localEmbarque|date|horarioOriginal"
   const aceitosSet = new Set(getAceitos().map(a => \`\${a.local}|\${a.date}|\${a.horarioOriginal}\`));
+  const negadosSet = new Set(getNegados().map(n => \`\${n.local}|\${n.date}|\${n.horarioOriginal}\`));
 
-  // Find sold-out slots: tks >= CAP, excluding those already with an accepted new slot
+  // Find sold-out slots: tks >= CAP, excluding accepted or denied
   const lotados = rawShows.filter(s => {
     if ((s.tks || 0) < CAP || !s.date || !s.time) return false;
     const key = \`\${getLocalEmbarque(s)}|\${s.date}|\${s.time}\`;
-    return !aceitosSet.has(key); // hide if already accepted
+    return !aceitosSet.has(key) && !negadosSet.has(key);
   });
 
   // Sort: localEmbarque (A→Z) → date → time
@@ -1693,15 +1717,19 @@ function render(rawShows) {
     const offsetLabel = mins === 10 ? '+10 min' : mins === 5 ? '+5 min (conflito em +10)' : \`+\${mins} min (conflito)\`;
     const localEsc = localEmbarque.replace(/'/g,"\\\\'");
     const eventEsc = (s.eventName||localEmbarque).replace(/'/g,"\\\\'");
-    html += \`<tr>
+    const rowId = 'row-' + i;
+    html += \`<tr id="\${rowId}">
       <td><strong>\${localEmbarque}</strong></td>
       <td><span class="tag-date">\${dateLabel}</span></td>
       <td><span class="tag-time">\${s.time}</span> <span class="badge-lotado">Lotado</span></td>
       <td style="color:var(--accent);font-weight:800">\${s.tks}/\${CAP}</td>
       <td><span class="tag-new">🕐 \${novoH}</span> <span style="font-size:10px;color:var(--muted)">\${offsetLabel}</span></td>
-      <td><button class="btn-aceitar\${jaAceito?' aceito':''}" id="\${btnId}" \${jaAceito?'disabled':''}\
-        onclick="aceitar('\${localEsc}','\${eventEsc}','\${s.date}','\${s.time}','\${novoH}','\${btnId}')">\
-        \${jaAceito?'✓ Aceito':'Aceitar'}</button></td>
+      <td style="display:flex;gap:6px;align-items:center">
+        <button class="btn-aceitar\${jaAceito?' aceito':''}" id="\${btnId}" \${jaAceito?'disabled':''}\
+          onclick="aceitar('\${localEsc}','\${eventEsc}','\${s.date}','\${s.time}','\${novoH}','\${btnId}')">\
+          \${jaAceito?'✓ Aceito':'Aceitar'}</button>
+        <button class="btn-negar" onclick="negar('\${localEsc}','\${s.date}','\${s.time}','\${rowId}')">✕ Negar</button>
+      </td>
     </tr>\`;
   });
 
