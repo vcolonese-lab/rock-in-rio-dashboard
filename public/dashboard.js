@@ -111,6 +111,16 @@ function renderAll() {
   const totalCan       = events.reduce((s, e) => s + (e.cancelled || 0), 0);
   const totalCanRev    = events.reduce((s, e) => s + (e.cancelledRevenue || 0), 0);
 
+  // ── Calcular dias reais desde a 1ª venda até hoje ──
+  const salesDatesArr = (_data.salesByDate || []).filter(d => d.tks > 0).map(d => d.date).sort();
+  const firstSaleDate = salesDatesArr.length > 0 ? new Date(salesDatesArr[0] + 'T12:00:00') : null;
+  const actualDaysElapsed = firstSaleDate
+    ? Math.max(1, Math.round((new Date() - firstSaleDate) / 86400000))
+    : 90;
+  const firstSaleLabel = firstSaleDate
+    ? firstSaleDate.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric'})
+    : null;
+
   document.getElementById('app').innerHTML = `
     <!-- KPIs -->
     <div class="section-heading"><h2>Visão Geral</h2><div class="section-divider"></div></div>
@@ -144,9 +154,10 @@ function renderAll() {
     <!-- PROJEÇÃO -->
     <div class="section-heading"><h2>Projeção de Vendas — 2026</h2><div class="section-divider"></div></div>
     <div class="proj-settings">
-      <span class="proj-input-label">Dias desde abertura das vendas:</span>
-      <input class="proj-input" type="number" id="proj-days-elapsed" value="90" min="1" max="365" oninput="renderProjection()">
+      <span class="proj-input-label">Dias desde 1ª venda até hoje:</span>
+      <input class="proj-input" type="number" id="proj-days-elapsed" value="${actualDaysElapsed}" min="1" max="365" oninput="renderProjection()">
       <span class="proj-input-label" id="proj-countdown"></span>
+      ${firstSaleLabel ? `<span class="proj-input-label" style="color:var(--muted)">· 1ª venda: ${firstSaleLabel}</span>` : ''}
     </div>
     <div class="proj-grid" id="proj-cards"></div>
     <div style="padding:16px 40px 0">
@@ -290,7 +301,12 @@ function renderProjection() {
   const eventDay     = new Date('2026-09-04T00:00:00');
   const today        = new Date();
   const daysLeft     = Math.max(0, Math.round((eventDay - today) / 86400000));
-  const daysElapsed  = parseInt(document.getElementById('proj-days-elapsed')?.value || 90, 10) || 90;
+  // Fallback: calcula dias reais desde a 1ª venda se o input não tiver sido preenchido
+  const salesDatesArr2 = (_data.salesByDate || []).filter(d => d.tks > 0).map(d => d.date).sort();
+  const autoElapsed = salesDatesArr2.length > 0
+    ? Math.max(1, Math.round((today - new Date(salesDatesArr2[0] + 'T12:00:00')) / 86400000))
+    : 1;
+  const daysElapsed  = parseInt(document.getElementById('proj-days-elapsed')?.value || autoElapsed, 10) || autoElapsed;
   const totalDays    = daysElapsed + daysLeft;
 
   // Countdown display
@@ -345,7 +361,7 @@ function renderProjection() {
       <div class="proj-value" style="color:var(--purple)">${velocityTix.toFixed(1)}</div>
       <div class="proj-sub">ingressos / dia</div>
       <div class="proj-sub">${fmtR(velocityRev)} / dia</div>
-      <div class="proj-sub" style="margin-top:8px">${fmtN(sold)} vendidos · ${daysLeft} dias restantes</div>
+      <div class="proj-sub" style="margin-top:8px">${fmtN(sold)} vendidos em ${daysElapsed} dias · ${daysLeft} dias restantes</div>
     </div>
     <div class="proj-card conservador">
       <div class="proj-label">Projeção Conservadora</div>
