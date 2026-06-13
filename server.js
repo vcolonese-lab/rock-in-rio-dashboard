@@ -1646,6 +1646,17 @@ function render(rawShows) {
   // Build set of all existing slots keyed by "localEmbarque|date|time"
   const existingSlots = new Set(rawShows.map(s => \`\${getLocalEmbarque(s)}|\${s.date}|\${s.time}\`));
 
+  // Build neighbor map: "localEmbarque|date" → sorted array of {time, tks}
+  const neighborMap = {};
+  for (const s of rawShows) {
+    if (!s.date || !s.time) continue;
+    const le = getLocalEmbarque(s);
+    const nk = \`\${le}|\${s.date}\`;
+    if (!neighborMap[nk]) neighborMap[nk] = [];
+    neighborMap[nk].push({ time: s.time, tks: s.tks || 0 });
+  }
+  for (const k in neighborMap) neighborMap[k].sort((a,b) => a.time.localeCompare(b.time));
+
   // Returns suggested new time and offset used; avoids existing slots
   function suggestTime(localEmbarque, date, origTime) {
     for (const mins of [10, 5, 15, 20]) {
@@ -1705,11 +1716,23 @@ function render(rawShows) {
   <div style="overflow-x:auto">
   <table class="lotados-table">
     <thead><tr>
-      <th>Local de Embarque</th><th>Data</th><th>Horário Lotado</th><th>Vendidos</th><th>Novo Horário Sugerido</th><th>Ação</th>
+      <th>Local de Embarque</th><th>Data</th><th>Horário Lotado</th><th>Vendidos</th><th>Horários Vizinhos</th><th>Novo Horário Sugerido</th><th>Ação</th>
     </tr></thead><tbody>\`;
 
   lotados.forEach((s, i) => {
     const localEmbarque = getLocalEmbarque(s);
+    // Find previous and next slots for this local+date
+    const neighborKey = \`\${localEmbarque}|\${s.date}\`;
+    const neighbors = neighborMap[neighborKey] || [];
+    const nIdx = neighbors.findIndex(n => n.time === s.time);
+    const prev = nIdx > 0 ? neighbors[nIdx - 1] : null;
+    const next = nIdx >= 0 && nIdx < neighbors.length - 1 ? neighbors[nIdx + 1] : null;
+    const prevHtml = prev
+      ? \`<div style="font-size:11px;white-space:nowrap">← \${prev.time} &nbsp;<b style="color:var(--text)">\${prev.tks}</b> <span style="color:var(--muted)">ing.</span></div>\`
+      : \`<div style="color:#555;font-size:11px">← sem anterior</div>\`;
+    const nextHtml = next
+      ? \`<div style="font-size:11px;white-space:nowrap">→ \${next.time} &nbsp;<b style="color:var(--text)">\${next.tks}</b> <span style="color:var(--muted)">ing.</span></div>\`
+      : \`<div style="color:#555;font-size:11px">→ sem próximo</div>\`;
     const { time: novoH, mins } = suggestTime(localEmbarque, s.date, s.time);
     const btnId = 'btn-' + i;
     const jaAceito = isAceito(localEmbarque, s.date, novoH);
@@ -1723,6 +1746,7 @@ function render(rawShows) {
       <td><span class="tag-date">\${dateLabel}</span></td>
       <td><span class="tag-time">\${s.time}</span> <span class="badge-lotado">Lotado</span></td>
       <td style="color:var(--accent);font-weight:800">\${s.tks}/\${CAP}</td>
+      <td>\${prevHtml}\${nextHtml}</td>
       <td><span class="tag-new">🕐 \${novoH}</span> <span style="font-size:10px;color:var(--muted)">\${offsetLabel}</span></td>
       <td style="display:flex;gap:6px;align-items:center">
         <button class="btn-aceitar\${jaAceito?' aceito':''}" id="\${btnId}" \${jaAceito?'disabled':''}\
