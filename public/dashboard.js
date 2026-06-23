@@ -107,9 +107,11 @@ function renderAll() {
   const totalSalesDays = (_data.byDate || []).filter(d => d.tks > 0).length;
   const totalTax       = _rawShows.reduce((s, r) => s + (r.taxa || 0), 0);
   const ticketMedio    = totalTickets > 0 ? totalRevenue / totalTickets : 0;
-  const totalRes       = events.reduce((s, e) => s + (e.reserved || 0), 0);
   const totalCan       = events.reduce((s, e) => s + (e.cancelled || 0), 0);
   const totalCanRev    = events.reduce((s, e) => s + (e.cancelledRevenue || 0), 0);
+  const todayStr       = new Date().toISOString().substring(0, 10);
+  const todaySalesEntry = (_data.salesByDate || []).find(d => d.date === todayStr);
+  const todaySales     = todaySalesEntry ? todaySalesEntry.tks : 0;
 
   // ── Calcular dias reais desde a 1ª venda até hoje (fixo: 25/05/2026) ──
   const firstSaleDate = new Date('2026-05-25T12:00:00');
@@ -138,9 +140,9 @@ function renderAll() {
       <div class="kpi-card purple"><div class="kpi-label">Locais</div>
         <div class="kpi-value">36</div>
         <div class="kpi-sub">${totalEvents} com vendas</div></div>
-      <div class="kpi-card" style="border-top:3px solid #f4a261"><div class="kpi-label">Reservados</div>
-        <div class="kpi-value" style="color:#f4a261">${fmt(totalRes)}</div>
-        <div class="kpi-sub">pedidos em aberto</div></div>
+      <div class="kpi-card" style="border-top:3px solid #f4a261"><div class="kpi-label">Vendas do Dia</div>
+        <div class="kpi-value" style="color:#f4a261">${fmt(todaySales)}</div>
+        <div class="kpi-sub">ingressos vendidos hoje</div></div>
       <div class="kpi-card" style="border-top:3px solid #e63946"><div class="kpi-label">Cancelados</div>
         <div class="kpi-value" style="color:#e63946">${fmt(totalCan)}</div>
         <div class="kpi-sub">${fmtR(totalCanRev)} estornados</div></div>
