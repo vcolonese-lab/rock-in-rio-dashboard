@@ -112,6 +112,9 @@ function renderAll() {
   const todayStr       = new Date().toISOString().substring(0, 10);
   const todaySalesEntry = (_data.salesByDate || []).find(d => d.date === todayStr);
   const todaySales     = todaySalesEntry ? todaySalesEntry.tks : 0;
+  const yesterdayStr   = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+  const yesterdaySalesEntry = (_data.salesByDate || []).find(d => d.date === yesterdayStr);
+  const yesterdaySales = yesterdaySalesEntry ? yesterdaySalesEntry.tks : 0;
 
   // ── Calcular dias reais desde a 1ª venda até hoje (fixo: 25/05/2026) ──
   const firstSaleDate = new Date('2026-05-25T12:00:00');
@@ -137,9 +140,9 @@ function renderAll() {
       <div class="kpi-card green"><div class="kpi-label">Dias de Venda</div>
         <div class="kpi-value">${fmt(totalSalesDays)}</div>
         <div class="kpi-sub">dias com vendas registradas</div></div>
-      <div class="kpi-card purple"><div class="kpi-label">Locais</div>
-        <div class="kpi-value">36</div>
-        <div class="kpi-sub">${totalEvents} com vendas</div></div>
+      <div class="kpi-card purple"><div class="kpi-label">Vendas Dia Anterior</div>
+        <div class="kpi-value">${fmt(yesterdaySales)}</div>
+        <div class="kpi-sub">ingressos vendidos ontem</div></div>
       <div class="kpi-card" style="border-top:3px solid #f4a261"><div class="kpi-label">Vendas do Dia</div>
         <div class="kpi-value" style="color:#f4a261">${fmt(todaySales)}</div>
         <div class="kpi-sub">ingressos vendidos hoje</div></div>
