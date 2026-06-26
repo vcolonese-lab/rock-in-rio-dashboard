@@ -352,28 +352,74 @@ app.get('/health/salesbydate', (req, res) => {
   res.json({ ok: true, salesByDate: state.data.salesByDate || [] });
 });
 
-// ── Public debug: raw first page from Crowder API (no auth) ─
+// ── Public debug: test several pagination param variants against the
+//    Crowder API to diagnose why refreshData() is only getting 1 page.
+//    PII fields are stripped from any sample movement returned. (no auth)
 app.get('/health/rawapi', async (req, res) => {
-  try {
-    const url = `${CROWDER_BASE}/activity/organizer?lastUpdate=0&lastMovementId=1`;
-    const r = await fetch(url, { headers: { 'ApiKey': CROWDER_API_KEY } });
-    const text = await r.text();
-    let json = null;
-    try { json = JSON.parse(text); } catch(e) {}
-    res.json({
-      status: r.status,
-      ok: r.ok,
-      hasMore: json?.hasMore,
-      lastUpdate: json?.lastUpdate,
-      lastMovementId: json?.lastMovementId,
-      movementsCount: json?.movements?.length ?? null,
-      topLevelKeys: json ? Object.keys(json) : null,
-      sampleMovement: json?.movements?.[0] ?? null,
-      rawSnippet: text.substring(0, 500)
-    });
-  } catch (e) {
-    res.json({ error: e.message });
+  // Redact PII/payment fields from a movement, keep structural fields only
+  function redact(m) {
+    if (!m || typeof m !== 'object') return m;
+    const clone = JSON.parse(JSON.stringify(m));
+    delete clone.purchase;
+    delete clone.customer;
+    delete clone.buyer;
+    delete clone.payment;
+    delete clone.card;
+    if (clone.tickets) {
+      clone.tickets = clone.tickets.map(t => {
+        const tc = { ...t };
+        delete tc.holder; delete tc.owner; delete tc.customer; delete tc.buyer;
+        return tc;
+      });
+    }
+    const piiKeys = ['name','firstName','lastName','document','cpf','email','gender','age','city','region','phone','cardBrand','cardNumber','last4','bin'];
+    (function strip(obj) {
+      if (!obj || typeof obj !== 'object') return;
+      for (const k of Object.keys(obj)) {
+        if (piiKeys.some(p => k.toLowerCase().includes(p.toLowerCase()))) {
+          obj[k] = '[REDACTED]';
+        } else if (typeof obj[k] === 'object') {
+          strip(obj[k]);
+        }
+      }
+    })(clone);
+    return clone;
   }
+
+  async function tryFetch(label, qs) {
+    try {
+      const url = `${CROWDER_BASE}/activity/organizer?${qs}`;
+      const r = await fetch(url, { headers: { 'ApiKey': CROWDER_API_KEY } });
+      const text = await r.text();
+      let json = null;
+      try { json = JSON.parse(text); } catch (e) {}
+      return {
+        label, url,
+        status: r.status,
+        ok: r.ok,
+        hasMore: json?.hasMore,
+        lastUpdate: json?.lastUpdate,
+        lastMovementId: json?.lastMovementId,
+        movementsCount: json?.movements?.length ?? null,
+        topLevelKeys: json ? Object.keys(json) : null,
+        firstMovementDate: json?.movements?.[0]?.date ?? null,
+        lastMovementDate: json?.movements?.length ? json.movements[json.movements.length - 1]?.date : null,
+        sampleMovement: redact(json?.movements?.[0] ?? null)
+      };
+    } catch (e) {
+      return { label, error: e.message };
+    }
+  }
+
+  const results = await Promise.all([
+    tryFetch('lastUpdate=0&lastMovementId=1 (current code)', 'lastUpdate=0&lastMovementId=1'),
+    tryFetch('lastUpdate=0&lastMovementId=0', 'lastUpdate=0&lastMovementId=0'),
+    tryFetch('no params at all', ''),
+    tryFetch('lastMovementId=1 only', 'lastMovementId=1'),
+    tryFetch('lastUpdate=1 only', 'lastUpdate=1'),
+  ]);
+
+  res.json({ results });
 });
 
 // ── Public debug: list unique events (no auth) ─
