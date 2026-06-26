@@ -28,13 +28,19 @@ const USERS = Object.fromEntries(
 // CROWDER API CONFIG
 // ─────────────────────────────────────────────
 const CROWDER_BASE    = 'https://data.getcrowder.com';
-// NOTA (2026-06-26): a chave nova fornecida pela Ticketmaster aponta para um
-// organizador/conta diferente (client id 1621, quase sem dados históricos).
-// A chave abaixo (organizador correto, client id 1185) continua ativa e com
-// o histórico completo — revertido até confirmar com a Ticketmaster qual é
-// a chave correta para esta conta.
-let CROWDER_API_KEY = process.env.CROWDER_API_KEY ||
+// NOTA (2026-06-26): a Ticketmaster trocou a API e forneceu uma chave nova,
+// mas essa chave nova não está trazendo o histórico anterior à sua criação
+// (só mostra vendas recentes, a partir de hoje). A chave antiga continua
+// ativa e tem todo o histórico. Solução temporária: buscar dados das DUAS
+// chaves em refreshData() e mesclar (removendo duplicados por id), até a
+// Ticketmaster confirmar que a chave nova já traz o histórico completo.
+let CROWDER_API_KEY_OLD = process.env.CROWDER_API_KEY_OLD ||
   '0b666073629dd36b18cb760355b4daf7105a7a9cd1d338cd05f9723e971b78c9';
+let CROWDER_API_KEY_NEW = process.env.CROWDER_API_KEY_NEW ||
+  'fb2c661b2d309f7e6e0a83a02e0cfe54ab8fcdb15561d8457cc490f1679e2e15';
+// Mantido por compatibilidade com código/endpoints que ainda referenciam uma
+// única chave (ex: /health/rawapi) — aponta para a chave antiga (histórico).
+let CROWDER_API_KEY = CROWDER_API_KEY_OLD;
 // Filter: only include movements whose event name contains this string.
 // Set to '' (empty) to include all events from the organizer.
 const EVENT_NAME_FILTER = process.env.EVENT_NAME_FILTER || 'Rock in Rio';
@@ -236,18 +242,18 @@ async function refreshData() {
     }
   }, 3 * 60 * 1000);
 
-  try {
-    const allMovements = [];
+  // Paginate through /activity/organizer fully for a single API key
+  async function fetchAllMovements(apiKey, label) {
+    const movements = [];
     let lastUpdate = 0, lastMovementId = 1, hasMore = true, pages = 0;
-
     while (hasMore) {
       const url = `${CROWDER_BASE}/activity/organizer?lastUpdate=${lastUpdate}&lastMovementId=${lastMovementId}`;
-      const res = await fetch(url, { headers: { 'ApiKey': CROWDER_API_KEY } });
-      if (!res.ok) throw new Error(`Crowder API HTTP ${res.status}: ${await res.text()}`);
+      const res = await fetch(url, { headers: { 'ApiKey': apiKey } });
+      if (!res.ok) throw new Error(`Crowder API (${label}) HTTP ${res.status}: ${await res.text()}`);
 
       const json = await res.json();
       const batch = json.movements || [];
-      allMovements.push(...batch);
+      movements.push(...batch);
 
       hasMore = json.hasMore === true;
       if (hasMore && batch.length > 0) {
@@ -255,34 +261,82 @@ async function refreshData() {
         lastMovementId  = json.lastMovementId  || batch[batch.length - 1].id;
       }
       pages++;
-      if (pages > 2000) { console.warn('[refresh] Safety limit: 2000 páginas'); break; }
+      if (pages > 2000) { console.warn(`[refresh] (${label}) Safety limit: 2000 páginas`); break; }
     }
+    console.log(`[refresh] (${label}) ${movements.length} movements em ${pages} página(s)`);
+    return movements;
+  }
 
-    console.log(`[refresh] ${allMovements.length} movements em ${pages} página(s)`);
-
-    // Fetch the show catalog (all shows, including those with zero sales)
-    let catalogShows = [];
+  // Fetch the show catalog for a single API key
+  async function fetchCatalog(apiKey, label) {
     try {
       const catRes = await fetch(`${CROWDER_BASE}/shows/organizer`, {
-        headers: { 'ApiKey': CROWDER_API_KEY }
+        headers: { 'ApiKey': apiKey }
       });
-      if (catRes.ok) {
-        const catJson = await catRes.json();
-        // The catalog can be an array or have a .shows / .data field
-        const raw = Array.isArray(catJson) ? catJson
-                  : (catJson.shows || catJson.data || catJson.results || []);
-        catalogShows = raw.filter(s =>
-          !EVENT_NAME_FILTER ||
-          (s.eventName && s.eventName.includes(EVENT_NAME_FILTER)) ||
-          (s.event && s.event.name && s.event.name.includes(EVENT_NAME_FILTER)) ||
-          (s.name && s.name.includes(EVENT_NAME_FILTER))
-        );
-        console.log(`[refresh] Catálogo: ${catalogShows.length} shows`);
-      } else {
-        console.warn(`[refresh] Catálogo shows: HTTP ${catRes.status}`);
+      if (!catRes.ok) {
+        console.warn(`[refresh] (${label}) Catálogo shows: HTTP ${catRes.status}`);
+        return [];
       }
+      const catJson = await catRes.json();
+      const raw = Array.isArray(catJson) ? catJson
+                : (catJson.shows || catJson.data || catJson.results || []);
+      const filtered = raw.filter(s =>
+        !EVENT_NAME_FILTER ||
+        (s.eventName && s.eventName.includes(EVENT_NAME_FILTER)) ||
+        (s.event && s.event.name && s.event.name.includes(EVENT_NAME_FILTER)) ||
+        (s.name && s.name.includes(EVENT_NAME_FILTER))
+      );
+      console.log(`[refresh] (${label}) Catálogo: ${filtered.length} shows`);
+      return filtered;
     } catch (e) {
-      console.warn('[refresh] Falha ao buscar catálogo de shows:', e.message);
+      console.warn(`[refresh] (${label}) Falha ao buscar catálogo de shows:`, e.message);
+      return [];
+    }
+  }
+
+  try {
+    // ── Busca das DUAS chaves (antiga = histórico, nova = vendas recentes) ──
+    // Solução temporária até a Ticketmaster confirmar que a chave nova já
+    // traz o histórico completo. Mescla por id de movimento, sem duplicar.
+    const keys = [
+      { key: CROWDER_API_KEY_OLD, label: 'chave antiga' },
+      { key: CROWDER_API_KEY_NEW, label: 'chave nova' }
+    ].filter(k => k.key);
+
+    const movementsByKey = await Promise.all(
+      keys.map(k => fetchAllMovements(k.key, k.label).catch(e => {
+        console.warn(`[refresh] (${k.label}) falhou:`, e.message);
+        return [];
+      }))
+    );
+
+    const seenIds = new Set();
+    const allMovements = [];
+    for (const batch of movementsByKey) {
+      for (const m of batch) {
+        const dedupKey = m.id != null ? m.id : JSON.stringify(m);
+        if (seenIds.has(dedupKey)) continue;
+        seenIds.add(dedupKey);
+        allMovements.push(m);
+      }
+    }
+    console.log(`[refresh] Total mesclado (sem duplicados): ${allMovements.length} movements`);
+
+    // Catálogo de shows — mescla das duas chaves, dedup por showId/productId
+    const catalogsByKey = await Promise.all(
+      keys.map(k => fetchCatalog(k.key, k.label))
+    );
+    const seenCatalog = new Set();
+    const catalogShows = [];
+    for (const batch of catalogsByKey) {
+      for (const c of batch) {
+        const sid = c.id || c.showId || c.show_id || null;
+        const pid = (c.product && c.product.id) || c.productId || null;
+        const dedupKey = `${sid}_${pid}`;
+        if (seenCatalog.has(dedupKey)) continue;
+        seenCatalog.add(dedupKey);
+        catalogShows.push(c);
+      }
     }
 
     state.data        = aggregateCrowderData(allMovements, catalogShows);
