@@ -386,10 +386,10 @@ app.get('/health/rawapi', async (req, res) => {
     return clone;
   }
 
-  async function tryFetch(label, qs) {
+  async function tryFetch(label, qs, apiKeyOverride) {
     try {
       const url = `${CROWDER_BASE}/activity/organizer?${qs}`;
-      const r = await fetch(url, { headers: { 'ApiKey': CROWDER_API_KEY } });
+      const r = await fetch(url, { headers: { 'ApiKey': apiKeyOverride || CROWDER_API_KEY } });
       const text = await r.text();
       let json = null;
       try { json = JSON.parse(text); } catch (e) {}
@@ -411,12 +411,13 @@ app.get('/health/rawapi', async (req, res) => {
     }
   }
 
+  const OLD_KEY = '0b666073629dd36b18cb760355b4daf7105a7a9cd1d338cd05f9723e971b78c9';
+
   const results = await Promise.all([
-    tryFetch('lastUpdate=0&lastMovementId=1 (current code)', 'lastUpdate=0&lastMovementId=1'),
-    tryFetch('lastUpdate=0&lastMovementId=0', 'lastUpdate=0&lastMovementId=0'),
-    tryFetch('no params at all', ''),
-    tryFetch('lastMovementId=1 only', 'lastMovementId=1'),
-    tryFetch('lastUpdate=1 only', 'lastUpdate=1'),
+    tryFetch('NEW KEY: lastUpdate=0&lastMovementId=1', 'lastUpdate=0&lastMovementId=1'),
+    tryFetch('NEW KEY: lastUpdate=0&lastMovementId=0', 'lastUpdate=0&lastMovementId=0'),
+    tryFetch('OLD KEY: lastUpdate=0&lastMovementId=1', 'lastUpdate=0&lastMovementId=1', OLD_KEY),
+    tryFetch('OLD KEY: lastUpdate=0&lastMovementId=0', 'lastUpdate=0&lastMovementId=0', OLD_KEY),
   ]);
 
   res.json({ results });
