@@ -352,6 +352,30 @@ app.get('/health/salesbydate', (req, res) => {
   res.json({ ok: true, salesByDate: state.data.salesByDate || [] });
 });
 
+// ── Public debug: raw first page from Crowder API (no auth) ─
+app.get('/health/rawapi', async (req, res) => {
+  try {
+    const url = `${CROWDER_BASE}/activity/organizer?lastUpdate=0&lastMovementId=1`;
+    const r = await fetch(url, { headers: { 'ApiKey': CROWDER_API_KEY } });
+    const text = await r.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch(e) {}
+    res.json({
+      status: r.status,
+      ok: r.ok,
+      hasMore: json?.hasMore,
+      lastUpdate: json?.lastUpdate,
+      lastMovementId: json?.lastMovementId,
+      movementsCount: json?.movements?.length ?? null,
+      topLevelKeys: json ? Object.keys(json) : null,
+      sampleMovement: json?.movements?.[0] ?? null,
+      rawSnippet: text.substring(0, 500)
+    });
+  } catch (e) {
+    res.json({ error: e.message });
+  }
+});
+
 // ── Public debug: list unique events (no auth) ─
 app.get('/health/events', (req, res) => {
   if (!state.data) return res.json({ ok: false, message: 'Sem dados ainda' });
