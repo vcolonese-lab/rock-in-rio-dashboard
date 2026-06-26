@@ -28,8 +28,13 @@ const USERS = Object.fromEntries(
 // CROWDER API CONFIG
 // ─────────────────────────────────────────────
 const CROWDER_BASE    = 'https://data.getcrowder.com';
+// NOTA (2026-06-26): a chave nova fornecida pela Ticketmaster aponta para um
+// organizador/conta diferente (client id 1621, quase sem dados históricos).
+// A chave abaixo (organizador correto, client id 1185) continua ativa e com
+// o histórico completo — revertido até confirmar com a Ticketmaster qual é
+// a chave correta para esta conta.
 let CROWDER_API_KEY = process.env.CROWDER_API_KEY ||
-  'fb2c661b2d309f7e6e0a83a02e0cfe54ab8fcdb15561d8457cc490f1679e2e15';
+  '0b666073629dd36b18cb760355b4daf7105a7a9cd1d338cd05f9723e971b78c9';
 // Filter: only include movements whose event name contains this string.
 // Set to '' (empty) to include all events from the organizer.
 const EVENT_NAME_FILTER = process.env.EVENT_NAME_FILTER || 'Rock in Rio';
@@ -352,19 +357,14 @@ app.get('/health/salesbydate', (req, res) => {
   res.json({ ok: true, salesByDate: state.data.salesByDate || [] });
 });
 
-// ── Public debug: test several pagination param variants against the
-//    Crowder API to diagnose why refreshData() is only getting 1 page.
-//    PII fields are stripped from any sample movement returned. (no auth)
-app.get('/health/rawapi', async (req, res) => {
-  // Redact PII/payment fields from a movement, keep structural fields only
+// ── Debug: check current Crowder API key status (auth required).
+//    PII fields are stripped from any sample movement returned.
+app.get('/health/rawapi', requireAuth, async (req, res) => {
   function redact(m) {
     if (!m || typeof m !== 'object') return m;
     const clone = JSON.parse(JSON.stringify(m));
-    delete clone.purchase;
-    delete clone.customer;
-    delete clone.buyer;
-    delete clone.payment;
-    delete clone.card;
+    delete clone.purchase; delete clone.customer; delete clone.buyer;
+    delete clone.payment; delete clone.card;
     if (clone.tickets) {
       clone.tickets = clone.tickets.map(t => {
         const tc = { ...t };
@@ -386,41 +386,25 @@ app.get('/health/rawapi', async (req, res) => {
     return clone;
   }
 
-  async function tryFetch(label, qs, apiKeyOverride) {
-    try {
-      const url = `${CROWDER_BASE}/activity/organizer?${qs}`;
-      const r = await fetch(url, { headers: { 'ApiKey': apiKeyOverride || CROWDER_API_KEY } });
-      const text = await r.text();
-      let json = null;
-      try { json = JSON.parse(text); } catch (e) {}
-      return {
-        label, url,
-        status: r.status,
-        ok: r.ok,
-        hasMore: json?.hasMore,
-        lastUpdate: json?.lastUpdate,
-        lastMovementId: json?.lastMovementId,
-        movementsCount: json?.movements?.length ?? null,
-        topLevelKeys: json ? Object.keys(json) : null,
-        firstMovementDate: json?.movements?.[0]?.date ?? null,
-        lastMovementDate: json?.movements?.length ? json.movements[json.movements.length - 1]?.date : null,
-        sampleMovement: redact(json?.movements?.[0] ?? null)
-      };
-    } catch (e) {
-      return { label, error: e.message };
-    }
+  try {
+    const url = `${CROWDER_BASE}/activity/organizer?lastUpdate=0&lastMovementId=1`;
+    const r = await fetch(url, { headers: { 'ApiKey': CROWDER_API_KEY } });
+    const text = await r.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch (e) {}
+    res.json({
+      status: r.status,
+      ok: r.ok,
+      hasMore: json?.hasMore,
+      lastUpdate: json?.lastUpdate,
+      lastMovementId: json?.lastMovementId,
+      movementsCount: json?.movements?.length ?? null,
+      firstMovementDate: json?.movements?.[0]?.date ?? null,
+      sampleMovement: redact(json?.movements?.[0] ?? null)
+    });
+  } catch (e) {
+    res.json({ error: e.message });
   }
-
-  const OLD_KEY = '0b666073629dd36b18cb760355b4daf7105a7a9cd1d338cd05f9723e971b78c9';
-
-  const results = await Promise.all([
-    tryFetch('NEW KEY: lastUpdate=0&lastMovementId=1', 'lastUpdate=0&lastMovementId=1'),
-    tryFetch('NEW KEY: lastUpdate=0&lastMovementId=0', 'lastUpdate=0&lastMovementId=0'),
-    tryFetch('OLD KEY: lastUpdate=0&lastMovementId=1', 'lastUpdate=0&lastMovementId=1', OLD_KEY),
-    tryFetch('OLD KEY: lastUpdate=0&lastMovementId=0', 'lastUpdate=0&lastMovementId=0', OLD_KEY),
-  ]);
-
-  res.json({ results });
 });
 
 // ── Public debug: list unique events (no auth) ─
