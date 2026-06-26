@@ -29,7 +29,7 @@ const USERS = Object.fromEntries(
 // ─────────────────────────────────────────────
 const CROWDER_BASE    = 'https://data.getcrowder.com';
 let CROWDER_API_KEY = process.env.CROWDER_API_KEY ||
-  '0b666073629dd36b18cb760355b4daf7105a7a9cd1d338cd05f9723e971b78c9';
+  'fb2c661b2d309f7e6e0a83a02e0cfe54ab8fcdb15561d8457cc490f1679e2e15';
 // Filter: only include movements whose event name contains this string.
 // Set to '' (empty) to include all events from the organizer.
 const EVENT_NAME_FILTER = process.env.EVENT_NAME_FILTER || 'Rock in Rio';
