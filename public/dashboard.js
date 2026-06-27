@@ -162,9 +162,6 @@ function renderAll() {
       <div class="kpi-card" style="border-top:3px solid #f4a261"><div class="kpi-label">Vendas do Dia</div>
         <div class="kpi-value" style="color:#f4a261">${fmt(todaySales)}</div>
         <div class="kpi-sub">ingressos vendidos hoje</div></div>
-      <div class="kpi-card" style="border-top:3px solid #e63946"><div class="kpi-label">Cancelados</div>
-        <div class="kpi-value" style="color:#e63946">${fmt(totalCan)}</div>
-        <div class="kpi-sub">${fmtR(totalCanRev)} estornados</div></div>
     </div>
 
     <!-- PROJEÇÃO -->
