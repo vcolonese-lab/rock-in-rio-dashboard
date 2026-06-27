@@ -120,15 +120,17 @@ function renderAll() {
   const actualDaysElapsed = Math.max(1, Math.round((new Date() - firstSaleDate) / 86400000));
   const firstSaleLabel = '25/05/2026';
 
-  // ── Comparativo com a mesma janela de antecedência (contagem regressiva) em 2024 ──
+  // ── Comparativo com o MESMO DIA da contagem regressiva em 2024 (vendas daquele dia específico, não acumuladas) ──
   const eventDate2026   = new Date('2026-09-04T00:00:00');
   const todayNoTime     = new Date(); todayNoTime.setHours(0, 0, 0, 0);
   const daysToEvent     = Math.round((eventDate2026 - todayNoTime) / 86400000);
   const countdownKey    = Math.max(-10, Math.min(180, daysToEvent));
   const countdownRow    = HIST_COUNTDOWN[countdownKey] || [0, 0, 0, 0, 0];
-  const vendas2024SameWindow = countdownRow[4]; // índice 4 = coluna 2024
-  const pctVs2024 = vendas2024SameWindow > 0
-    ? ((totalTickets - vendas2024SameWindow) / vendas2024SameWindow) * 100
+  const countdownRowPrev = HIST_COUNTDOWN[countdownKey + 1] || countdownRow;
+  // vendas do dia específico em 2024 = acumulado(dia) - acumulado(dia anterior na contagem)
+  const vendas2024DiaEspecifico = Math.max(0, countdownRow[4] - countdownRowPrev[4]); // índice 4 = coluna 2024
+  const pctVs2024 = vendas2024DiaEspecifico > 0
+    ? ((todaySales - vendas2024DiaEspecifico) / vendas2024DiaEspecifico) * 100
     : null;
   const corComparativo = pctVs2024 == null ? '#7a8499' : (pctVs2024 >= 0 ? '#2ec27e' : '#e63946');
 
@@ -148,12 +150,12 @@ function renderAll() {
       <div class="kpi-card teal"><div class="kpi-label">Ticket Médio</div>
         <div class="kpi-value">${fmtR(ticketMedio)}</div>
         <div class="kpi-sub">por ingresso vendido</div></div>
-      <div class="kpi-card green"><div class="kpi-label">Vendas 2024 (mesmo prazo)</div>
-        <div class="kpi-value">${fmt(vendas2024SameWindow)}</div>
-        <div class="kpi-sub">a ${countdownKey} dias do evento, em 2024</div></div>
-      <div class="kpi-card" style="border-top:3px solid ${corComparativo}"><div class="kpi-label">2026 vs 2024 (mesmo prazo)</div>
+      <div class="kpi-card green"><div class="kpi-label">Vendas 2024 (mesmo dia)</div>
+        <div class="kpi-value">${fmt(vendas2024DiaEspecifico)}</div>
+        <div class="kpi-sub">vendido a ${countdownKey} dias do evento, em 2024</div></div>
+      <div class="kpi-card" style="border-top:3px solid ${corComparativo}"><div class="kpi-label">2026 vs 2024 (mesmo dia)</div>
         <div class="kpi-value" style="color:${corComparativo}">${pctVs2024 == null ? '—' : (pctVs2024 >= 0 ? '+' : '') + pctVs2024.toFixed(1) + '%'}</div>
-        <div class="kpi-sub">${fmt(totalTickets)} vs ${fmt(vendas2024SameWindow)} ingressos</div></div>
+        <div class="kpi-sub">${fmt(todaySales)} vs ${fmt(vendas2024DiaEspecifico)} ingressos hoje</div></div>
       <div class="kpi-card purple"><div class="kpi-label">Vendas Dia Anterior</div>
         <div class="kpi-value">${fmt(yesterdaySales)}</div>
         <div class="kpi-sub">ingressos vendidos ontem</div></div>
