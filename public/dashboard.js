@@ -1042,6 +1042,13 @@ function exportXLS() {
     }
   }
 
+  // Reverse lookup: rawSuffix → sheetLocal (friendly display name)
+  // Ensures unmatched entries (alternate times) also get the canonical Local name
+  const rawToLocal = {};
+  for (const [sheetLocal, rawSuffix] of Object.entries(LOCAL_NAME_MAP)) {
+    rawToLocal[rawSuffix] = sheetLocal;
+  }
+
   // Generate all rows from MASTER_SCHEDULE (all slots, including 0-sale ones)
   const wsData = [['Local','Nome Completo','Data Festival','Horário Saída','Ingressos Vendidos','Subtotal (R$)','Taxa (R$)','Total (R$)']];
   const matchedKeys = new Set();
@@ -1064,8 +1071,10 @@ function exportXLS() {
   for (const [key, r] of Object.entries(showLookup)) {
     if (!matchedKeys.has(key)) {
       const [suffix, date, time] = key.split(SEP);
+      // Use canonical friendly name if available (avoids duplicates like "Niterói Plaza Shopping" vs "Plaza Shopping")
+      const displayLocal = rawToLocal[suffix] || suffix;
       const fullName = PREFIX + suffix;
-      wsData.push([suffix, fullName, date, time, r.tks, +r.subtotal.toFixed(2), +r.taxa.toFixed(2), +(r.subtotal+r.taxa).toFixed(2)]);
+      wsData.push([displayLocal, fullName, date, time, r.tks, +r.subtotal.toFixed(2), +r.taxa.toFixed(2), +(r.subtotal+r.taxa).toFixed(2)]);
     }
   }
   // Sort by: Local (col 0) → Data Festival (col 2) → Horário Saída (col 3)
