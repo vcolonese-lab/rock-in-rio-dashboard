@@ -1020,12 +1020,18 @@ function exportXLS() {
   // eventSuffix = everything after "Primeira Classe Rock in Rio - " (or middle part for "|" format names)
   const PREFIX = 'Primeira Classe Rock in Rio - ';
   const SEP = '\x00';
+  const PIPE_PREFIX = 'Primeira Classe Rock in Rio | ';
   const extractSuffix = (eventName, fallback) => {
     if (!eventName) return fallback || '';
+    // Format 1: "Primeira Classe Rock in Rio - LocalName..."
     if (eventName.startsWith(PREFIX)) return eventName.slice(PREFIX.length);
-    // Handle alternative format: "Primeira Classe Rock in Rio | LocalName | City"
-    const m = eventName.match(/Primeira Classe Rock in Rio \| ([^|]+?) \|/);
-    return m ? m[1].trim() : eventName;
+    // Format 2: "Primeira Classe Rock in Rio | LocalName | City"  OR  "Primeira Classe Rock in Rio | LocalName"
+    if (eventName.startsWith(PIPE_PREFIX)) {
+      const rest = eventName.slice(PIPE_PREFIX.length);
+      const next = rest.indexOf(' | ');
+      return (next !== -1 ? rest.slice(0, next) : rest).trim();
+    }
+    return eventName;
   };
   const showLookup = {};
   for (const r of _rawShows) {
@@ -1080,7 +1086,11 @@ function exportXLS() {
     if (!matchedKeys.has(key)) {
       const [suffix, date, time] = key.split(SEP);
       // Use canonical friendly name if available (avoids duplicates like "Niterói Plaza Shopping" vs "Plaza Shopping")
-      const displayLocal = rawToLocal[suffix] || suffix;
+      // Also strip any residual prefix as safety net
+      const cleanSuffix = suffix.startsWith(PREFIX) ? suffix.slice(PREFIX.length)
+                        : suffix.startsWith(PIPE_PREFIX) ? suffix.slice(PIPE_PREFIX.length).replace(/ \|.*$/, '').trim()
+                        : suffix;
+      const displayLocal = rawToLocal[cleanSuffix] || cleanSuffix;
       wsData.push([displayLocal, date, time, r.tks, +r.subtotal.toFixed(2), +r.taxa.toFixed(2), +(r.subtotal+r.taxa).toFixed(2)]);
     }
   }
