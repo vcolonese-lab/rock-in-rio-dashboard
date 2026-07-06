@@ -1058,11 +1058,10 @@ function exportXLS() {
   }
 
   // Generate rows: use MASTER_SCHEDULE for friendly name lookup, but only include API-backed slots
-  const wsData = [['Local','Nome Completo','Data Festival','Horário Saída','Ingressos Vendidos','Subtotal (R$)','Taxa (R$)','Total (R$)']];
+  const wsData = [['Local','Data Festival','Horário Saída','Ingressos Vendidos','Subtotal (R$)','Taxa (R$)','Total (R$)']];
   const matchedKeys = new Set();
   for (const [sheetLocal, dateMap] of Object.entries(MASTER_SCHEDULE)) {
     const rawSuffix = LOCAL_NAME_MAP[sheetLocal] || sheetLocal;
-    const fullName = PREFIX + rawSuffix;
     for (const [date, times] of Object.entries(dateMap)) {
       for (const time of times) {
         const key = `${rawSuffix}${SEP}${date}${SEP}${time}`;
@@ -1072,7 +1071,7 @@ function exportXLS() {
         const tks      = r ? r.tks      : 0;
         const subtotal = r ? r.subtotal : 0;
         const taxa     = r ? r.taxa     : 0;
-        wsData.push([sheetLocal, fullName, date, time, tks, +subtotal.toFixed(2), +taxa.toFixed(2), +(subtotal+taxa).toFixed(2)]);
+        wsData.push([sheetLocal, date, time, tks, +subtotal.toFixed(2), +taxa.toFixed(2), +(subtotal+taxa).toFixed(2)]);
       }
     }
   }
@@ -1082,8 +1081,7 @@ function exportXLS() {
       const [suffix, date, time] = key.split(SEP);
       // Use canonical friendly name if available (avoids duplicates like "Niterói Plaza Shopping" vs "Plaza Shopping")
       const displayLocal = rawToLocal[suffix] || suffix;
-      const fullName = PREFIX + suffix;
-      wsData.push([displayLocal, fullName, date, time, r.tks, +r.subtotal.toFixed(2), +r.taxa.toFixed(2), +(r.subtotal+r.taxa).toFixed(2)]);
+      wsData.push([displayLocal, date, time, r.tks, +r.subtotal.toFixed(2), +r.taxa.toFixed(2), +(r.subtotal+r.taxa).toFixed(2)]);
     }
   }
   // Sort by: Local (col 0) → Data Festival (col 2) → Horário Saída (col 3)
