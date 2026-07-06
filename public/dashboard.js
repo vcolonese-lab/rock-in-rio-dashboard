@@ -1084,28 +1084,28 @@ function exportXLS() {
       wsData.push([displayLocal, date, time, r.tks, +r.subtotal.toFixed(2), +r.taxa.toFixed(2), +(r.subtotal+r.taxa).toFixed(2)]);
     }
   }
-  // Sort by: Local (col 0) → Data Festival (col 2) → Horário Saída (col 3)
+  // Sort by: Local (col 0) → Data Festival (col 1) → Horário Saída (col 2)
   const header = wsData.shift();
   wsData.sort((a, b) => {
     const localCmp = a[0].localeCompare(b[0], 'pt-BR');
     if (localCmp !== 0) return localCmp;
-    const dateCmp = a[2].localeCompare(b[2]);
+    const dateCmp = a[1].localeCompare(b[1]);
     if (dateCmp !== 0) return dateCmp;
-    return a[3].localeCompare(b[3]);
+    return a[2].localeCompare(b[2]);
   });
   wsData.unshift(header);
 
   // Compute totals from the wsData rows already built (ensures consistency between tabs)
   let totTks = 0, totSub = 0, totTax = 0;
   for (let i = 1; i < wsData.length; i++) {
-    totTks += wsData[i][4] || 0;
-    totSub += wsData[i][5] || 0;
-    totTax += wsData[i][6] || 0;
+    totTks += wsData[i][3] || 0;
+    totSub += wsData[i][4] || 0;
+    totTax += wsData[i][5] || 0;
   }
-  wsData.push(['','','','TOTAL', totTks, +totSub.toFixed(2), +totTax.toFixed(2), +(totSub+totTax).toFixed(2)]);
+  wsData.push(['','','TOTAL', totTks, +totSub.toFixed(2), +totTax.toFixed(2), +(totSub+totTax).toFixed(2)]);
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{wch:32},{wch:48},{wch:14},{wch:14},{wch:18},{wch:14},{wch:12},{wch:14}];
+  ws['!cols'] = [{wch:32},{wch:14},{wch:14},{wch:18},{wch:14},{wch:12},{wch:14}];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Shows Detalhados');
@@ -1117,9 +1117,9 @@ function exportXLS() {
     const row = wsData[i];
     const loc = row[0];
     if (!bl[loc]) bl[loc] = {t:0,s:0,x:0};
-    bl[loc].t += row[4] || 0;
-    bl[loc].s += row[5] || 0;
-    bl[loc].x += row[6] || 0;
+    bl[loc].t += row[3] || 0;
+    bl[loc].s += row[4] || 0;
+    bl[loc].x += row[5] || 0;
   }
   Object.entries(bl).sort((a,b)=>b[1].t-a[1].t).forEach(([l,v])=>sum.push([l,v.t,+v.s.toFixed(2),+v.x.toFixed(2),+(v.s+v.x).toFixed(2)]));
   // Add total row to Resumo
