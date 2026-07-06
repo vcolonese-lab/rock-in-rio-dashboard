@@ -1059,11 +1059,9 @@ function exportXLS() {
       for (const time of times) {
         const key = `${rawSuffix}${SEP}${date}${SEP}${time}`;
         const r = showLookup[key];
-        if (r) matchedKeys.add(key);
-        const tks      = r ? r.tks      : 0;
-        const subtotal = r ? r.subtotal : 0;
-        const taxa     = r ? r.taxa     : 0;
-        wsData.push([sheetLocal, fullName, date, time, tks, +subtotal.toFixed(2), +taxa.toFixed(2), +(subtotal+taxa).toFixed(2)]);
+        if (!r) continue; // sem vendas neste slot — não incluir na planilha
+        matchedKeys.add(key);
+        wsData.push([sheetLocal, fullName, date, time, r.tks, +r.subtotal.toFixed(2), +r.taxa.toFixed(2), +(r.subtotal+r.taxa).toFixed(2)]);
       }
     }
   }
