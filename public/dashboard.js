@@ -1049,7 +1049,15 @@ function exportXLS() {
     rawToLocal[rawSuffix] = sheetLocal;
   }
 
-  // Generate all rows from MASTER_SCHEDULE (all slots, including 0-sale ones)
+  // Set of all slot keys known by the API (allShows = rawShows + catalog with 0 sales)
+  // Only these slots should appear in the XLS — static MASTER_SCHEDULE slots with no API backing are excluded
+  const apiSlots = new Set();
+  for (const s of _allShows) {
+    const sfx = extractSuffix(s.eventName, s.local);
+    apiSlots.add(`${sfx}${SEP}${s.date}${SEP}${s.time}`);
+  }
+
+  // Generate rows: use MASTER_SCHEDULE for friendly name lookup, but only include API-backed slots
   const wsData = [['Local','Nome Completo','Data Festival','Horário Saída','Ingressos Vendidos','Subtotal (R$)','Taxa (R$)','Total (R$)']];
   const matchedKeys = new Set();
   for (const [sheetLocal, dateMap] of Object.entries(MASTER_SCHEDULE)) {
@@ -1058,10 +1066,13 @@ function exportXLS() {
     for (const [date, times] of Object.entries(dateMap)) {
       for (const time of times) {
         const key = `${rawSuffix}${SEP}${date}${SEP}${time}`;
+        if (!apiSlots.has(key)) continue; // slot não existe na API — era dado estático da planilha, ignorar
         const r = showLookup[key];
-        if (!r) continue; // sem vendas neste slot — não incluir na planilha
-        matchedKeys.add(key);
-        wsData.push([sheetLocal, fullName, date, time, r.tks, +r.subtotal.toFixed(2), +r.taxa.toFixed(2), +(r.subtotal+r.taxa).toFixed(2)]);
+        if (r) matchedKeys.add(key);
+        const tks      = r ? r.tks      : 0;
+        const subtotal = r ? r.subtotal : 0;
+        const taxa     = r ? r.taxa     : 0;
+        wsData.push([sheetLocal, fullName, date, time, tks, +subtotal.toFixed(2), +taxa.toFixed(2), +(subtotal+taxa).toFixed(2)]);
       }
     }
   }
