@@ -590,6 +590,11 @@ app.get('/perfil', requireAuth, (req, res) => {
   res.send(getPerfilHTML(req.session.user));
 });
 
+// ── Sub-page: Análise por Local ───────────────
+app.get('/locais', requireAuth, (req, res) => {
+  res.send(getLocaisHTML(req.session.user));
+});
+
 // ── Sub-page: Lista de Eventos ─────────────
 app.get('/eventos', requireAuth, (req, res) => {
   res.send(getEventosHTML(req.session.user));
@@ -825,6 +830,11 @@ ${SHARED_HEADER_CSS}
 
 <!-- NAV CARDS -->
 <div class="nav-cards">
+  <a href="/locais" class="nav-card" style="border-color:#e8871a44">
+    <div class="nav-card-icon">📍</div>
+    <div><div class="nav-card-title">Análise por Local</div><div class="nav-card-desc">Receita, ingressos, horários e lotação por ponto</div></div>
+    <div class="nav-card-arrow">›</div>
+  </a>
   <a href="/tempo" class="nav-card">
     <div class="nav-card-icon">📅</div>
     <div><div class="nav-card-title">Tempo de Vendas</div><div class="nav-card-desc">Análise por semana e dia da semana</div></div>
@@ -1897,6 +1907,246 @@ async function loadData() {
     document.getElementById('status-dot').className = 'status-dot red';
     document.getElementById('status-text').textContent = 'Erro: ' + e.message;
     document.getElementById('loading').classList.add('hidden');
+  }
+}
+document.addEventListener('DOMContentLoaded', loadData);
+<\/script>
+</body></html>`;
+}
+
+// ─────────────────────────────────────────────
+// ANÁLISE POR LOCAL PAGE
+// ─────────────────────────────────────────────
+function getLocaisHTML(username) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Análise por Local — Rock in Rio 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>
+<style>
+${SHARED_CSS_VARS}
+${SHARED_HEADER_CSS}
+  #loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:14px}
+  .spinner2{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin2 .9s linear infinite}
+  @keyframes spin2{to{transform:rotate(360deg)}}
+  .content{padding:20px 32px 40px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+  .kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;font-weight:700}
+  .kpi-val{font-size:24px;font-weight:800;line-height:1.1}
+  .kpi-sub{font-size:11px;color:var(--muted);margin-top:4px}
+  .kpi.gold{border-top-color:var(--gold)}.kpi.gold .kpi-val{color:var(--gold)}
+  .kpi.red{border-top-color:var(--accent)}.kpi.red .kpi-val{color:var(--accent)}
+  .kpi.blue{border-top-color:var(--blue)}.kpi.blue .kpi-val{color:var(--blue)}
+  .kpi.teal{border-top-color:var(--teal)}.kpi.teal .kpi-val{color:var(--teal)}
+  .kpi.green{border-top-color:var(--green)}.kpi.green .kpi-val{color:var(--green)}
+  .kpi.orange{border-top-color:var(--orange)}.kpi.orange .kpi-val{color:var(--orange)}
+  .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px}
+  .section-title{font-size:13px;font-weight:700;color:var(--orange);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+  .chart-wrap{position:relative;height:320px}
+  .chart-wrap-tall{position:relative;height:420px}
+  .table-scroll{overflow-x:auto}
+  .data-table{width:100%;border-collapse:collapse;font-size:12px}
+  .data-table th{background:var(--surface2);color:var(--orange);padding:8px 10px;text-align:right;border-bottom:2px solid var(--border);font-size:10px;text-transform:uppercase;white-space:nowrap;position:sticky;top:0}
+  .data-table th:first-child{text-align:left}
+  .data-table td{padding:6px 10px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .data-table td:first-child{text-align:left;color:var(--text);font-weight:600}
+  .data-table tr:hover td{background:var(--surface2)}
+  .data-table .total-row td{font-weight:700;color:var(--gold);border-top:2px solid var(--border);background:var(--surface2)}
+  .rank-table{width:100%;border-collapse:collapse;font-size:13px}
+  .rank-table th{background:var(--surface2);color:var(--orange);padding:8px 12px;text-align:left;border-bottom:2px solid var(--border);font-size:11px;text-transform:uppercase}
+  .rank-table td{padding:8px 12px;border-bottom:1px solid var(--border)}
+  .rank-table tr:hover td{background:var(--surface2)}
+  .num{color:var(--orange);font-weight:700}
+  .bar-cell{display:flex;align-items:center;gap:6px}
+  .bar-inline{height:10px;border-radius:3px;background:var(--orange);min-width:2px;transition:width .3s}
+  .zero{color:var(--muted)}
+  @media(max-width:900px){.content{padding:16px}.charts-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner2"></div><span style="color:var(--muted)">Carregando dados...</span></div>
+<header>
+  <div class="header-left">
+    <a href="/" style="text-decoration:none;border:1px solid var(--border);padding:7px 14px;border-radius:8px;color:var(--text);font-size:13px;font-weight:600">← Voltar</a>
+    <div class="logo-badge">Rock in Rio 2026</div>
+    <div><h1>Análise por Local</h1><p>Receita, ingressos, horários e lotação por ponto de embarque</p></div>
+  </div>
+  <div class="header-right">
+    <span id="last-upd" style="font-size:11px;color:var(--muted)"></span>
+    <button class="btn btn-primary" onclick="loadData()">↻ Atualizar</button>
+    <form method="POST" action="/logout" style="margin:0"><button class="btn btn-secondary" type="submit">Sair</button></form>
+  </div>
+</header>
+<div id="status-bar"><span class="status-dot" id="status-dot"></span><span id="status-text">Conectando...</span></div>
+<div class="content" id="content" style="display:none">
+
+  <div class="kpis">
+    <div class="kpi gold"><div class="kpi-label">💰 Receita Total</div><div class="kpi-val" id="k-receita">—</div><div class="kpi-sub">em ingressos vendidos</div></div>
+    <div class="kpi red"><div class="kpi-label">🎫 Ingressos Vendidos</div><div class="kpi-val" id="k-tks">—</div><div class="kpi-sub" id="k-tks-sub">locais ativos</div></div>
+    <div class="kpi blue"><div class="kpi-label">📍 Pontos de Embarque</div><div class="kpi-val" id="k-locais">—</div><div class="kpi-sub" id="k-locais-sub">com vendas</div></div>
+    <div class="kpi teal"><div class="kpi-label">💳 Ticket Médio</div><div class="kpi-val" id="k-medio">—</div><div class="kpi-sub">por ingresso</div></div>
+    <div class="kpi green"><div class="kpi-label">🏆 Top Local</div><div class="kpi-val" id="k-top" style="font-size:14px;line-height:1.3">—</div><div class="kpi-sub" id="k-top-sub"></div></div>
+    <div class="kpi orange"><div class="kpi-label">❌ Cancelados</div><div class="kpi-val" id="k-can">—</div><div class="kpi-sub">ingressos cancelados</div></div>
+  </div>
+
+  <div class="charts-row">
+    <div class="section">
+      <div class="section-title">🏅 Top 15 Locais — Receita (R$)</div>
+      <div class="chart-wrap-tall"><canvas id="chart-receita"></canvas></div>
+    </div>
+    <div class="section">
+      <div class="section-title">🏅 Top 15 Locais — Ingressos Vendidos</div>
+      <div class="chart-wrap-tall"><canvas id="chart-ingressos"></canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="section">
+      <div class="section-title">📅 Vendas por Dia (Data da Compra)</div>
+      <div class="chart-wrap"><canvas id="chart-timeline"></canvas></div>
+    </div>
+    <div class="section">
+      <div class="section-title">🕐 Ranking de Horários de Partida</div>
+      <div style="max-height:320px;overflow-y:auto">
+        <table class="rank-table" id="tbl-horarios">
+          <thead><tr><th>#</th><th>Horário</th><th>Ingressos</th><th style="width:120px">Barra</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📊 Lotação por Data de Show — Ingressos por Ponto de Embarque</div>
+    <div class="table-scroll" id="tbl-lotacao-wrap" style="max-height:500px;overflow-y:auto"></div>
+  </div>
+
+</div>
+<script>
+const FEST_DATES  = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07','2026-09-11','2026-09-12','2026-09-13'];
+const FEST_LABELS = ['04/Set (Sex)','05/Set (Sáb)','06/Set (Dom)','07/Set (Seg)','11/Set (Sex)','12/Set (Sáb)','13/Set (Dom)'];
+const PREFIX1 = 'Primeira Classe Rock in Rio - ';
+const PREFIX2 = 'Primeira Classe Rock in Rio | ';
+const fmt  = n => Number(n||0).toLocaleString('pt-BR');
+const fmtR = n => 'R$\\u00a0'+Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+const COLORS = ['#e8871a','#5b8dee','#2ec27e','#9b59b6','#1abc9c','#ffd700','#e63946','#f4a261','#FF6B9D','#4ecdc4','#45b7d1','#96ceb4','#ff9f43','#54a0ff','#5f27cd'];
+const axO = {color:'#7a8499',grid:{color:'#252d3d'}};
+let charts = {};
+function mk(id,cfg){ if(charts[id])charts[id].destroy(); const c=document.getElementById(id); if(c)charts[id]=new Chart(c,cfg); }
+
+function normLocal(s){
+  if(!s) return '—';
+  if(s.startsWith(PREFIX1)) return s.slice(PREFIX1.length);
+  if(s.startsWith(PREFIX2)){ const r=s.slice(PREFIX2.length); const p=r.indexOf(' | '); return (p!==-1?r.slice(0,p):r).trim(); }
+  return s;
+}
+
+function render(d){
+  const raw = d.rawShows || [];
+  const sbd = (d.salesByDate || []).sort((a,b)=>a.date.localeCompare(b.date)).filter(r=>r.tks>0);
+
+  // Aggregate by local
+  const locMap = {};
+  for(const r of raw){
+    const loc = normLocal(r.local||r.eventName||'');
+    if(!loc||loc==='—') continue;
+    if(!locMap[loc]) locMap[loc]={receita:0,tks:0,cancelled:0};
+    locMap[loc].receita   += r.subtotal||0;
+    locMap[loc].tks       += r.tks||0;
+    locMap[loc].cancelled += r.cancelled||0;
+  }
+  const byTks  = Object.entries(locMap).sort((a,b)=>b[1].tks-a[1].tks);
+  const byRec  = [...byTks].sort((a,b)=>b[1].receita-a[1].receita);
+  const totTks = byTks.reduce((s,[,v])=>s+v.tks,0);
+  const totRec = byTks.reduce((s,[,v])=>s+v.receita,0);
+  const totCan = byTks.reduce((s,[,v])=>s+v.cancelled,0);
+  const active = byTks.filter(([,v])=>v.tks>0);
+  const top    = active[0]||['—',{tks:0,receita:0}];
+
+  document.getElementById('k-receita').textContent = fmtR(totRec);
+  document.getElementById('k-tks').textContent     = fmt(totTks);
+  document.getElementById('k-tks-sub').textContent = active.length+' locais ativos';
+  document.getElementById('k-locais').textContent  = byTks.length;
+  document.getElementById('k-locais-sub').textContent = active.length+' com vendas';
+  document.getElementById('k-medio').textContent   = totTks>0?fmtR(totRec/totTks):'—';
+  document.getElementById('k-top').textContent     = top[0];
+  document.getElementById('k-top-sub').textContent = fmt(top[1].tks)+' ing · '+fmtR(top[1].receita);
+  document.getElementById('k-can').textContent     = fmt(totCan);
+
+  // Top 15 receita
+  const t15r = byRec.slice(0,15);
+  mk('chart-receita',{type:'bar',data:{labels:t15r.map(([l])=>l.length>20?l.slice(0,19)+'…':l),datasets:[{label:'Receita',data:t15r.map(([,v])=>v.receita),backgroundColor:COLORS.slice(0,15),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtR(c.raw)}}},scales:{x:{ticks:{...axO,callback:v=>fmtR(v)},grid:{color:'#252d3d'}},y:{ticks:{...axO,font:{size:11}},grid:{color:'#252d3d'}}}}});
+
+  // Top 15 ingressos
+  const t15i = byTks.slice(0,15);
+  mk('chart-ingressos',{type:'bar',data:{labels:t15i.map(([l])=>l.length>20?l.slice(0,19)+'…':l),datasets:[{label:'Ingressos',data:t15i.map(([,v])=>v.tks),backgroundColor:COLORS.slice(0,15),borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}},scales:{x:{ticks:{...axO,callback:v=>fmt(v)},grid:{color:'#252d3d'}},y:{ticks:{...axO,font:{size:11}},grid:{color:'#252d3d'}}}}});
+
+  // Timeline
+  mk('chart-timeline',{type:'line',data:{labels:sbd.map(r=>r.date.slice(5)),datasets:[{label:'Ingressos',data:sbd.map(r=>r.tks),borderColor:'#e8871a',backgroundColor:'rgba(232,135,26,.12)',fill:true,tension:.35,pointRadius:2,pointBackgroundColor:'#e8871a'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}},scales:{x:{ticks:{...axO,maxTicksLimit:10},grid:{color:'#252d3d'}},y:{ticks:{...axO,callback:v=>fmt(v)},grid:{color:'#252d3d'}}}}});
+
+  // Horários de partida
+  const horMap = {};
+  for(const r of raw){ if(r.time) horMap[r.time]=(horMap[r.time]||0)+(r.tks||0); }
+  const horArr = Object.entries(horMap).sort((a,b)=>b[1]-a[1]);
+  const maxH = horArr[0]?horArr[0][1]:1;
+  document.querySelector('#tbl-horarios tbody').innerHTML = horArr.map(([t,n],i)=>
+    \`<tr><td style="color:var(--muted);width:28px">\${i+1}</td><td style="font-weight:700;font-size:14px">\${t}</td><td class="num">\${fmt(n)}</td><td><div class="bar-cell"><div class="bar-inline" style="width:\${Math.max(4,Math.round(n/maxH*120))}px"></div><span style="font-size:11px;color:var(--muted)">\${Math.round(n/maxH*100)}%</span></div></td></tr>\`
+  ).join('');
+
+  // Lotação matrix
+  const matMap = {};
+  for(const r of raw){
+    const loc = normLocal(r.local||r.eventName||'');
+    if(!loc||loc==='—') continue;
+    const dt = r.date||'';
+    if(FEST_DATES.includes(dt)){
+      if(!matMap[loc]) matMap[loc]={};
+      matMap[loc][dt] = (matMap[loc][dt]||0)+(r.tks||0);
+    }
+  }
+  const matLocs = Object.entries(matMap).sort((a,b)=>{
+    const ta=FEST_DATES.reduce((s,d)=>s+(a[1][d]||0),0);
+    const tb=FEST_DATES.reduce((s,d)=>s+(b[1][d]||0),0);
+    return tb-ta;
+  });
+  const colTot = {};
+  FEST_DATES.forEach(d=>{colTot[d]=matLocs.reduce((s,[,m])=>s+(m[d]||0),0);});
+  const grandTot = FEST_DATES.reduce((s,d)=>s+(colTot[d]||0),0);
+
+  const hdr = \`<tr><th>Ponto de Embarque</th>\${FEST_LABELS.map(l=>\`<th>\${l}</th>\`).join('')}<th>Total</th></tr>\`;
+  const bodyRows = matLocs.map(([loc,m])=>{
+    const tot = FEST_DATES.reduce((s,d)=>s+(m[d]||0),0);
+    return \`<tr><td>\${loc}</td>\${FEST_DATES.map(d=>m[d]
+      ?\`<td class="num">\${fmt(m[d])}</td>\`
+      :\`<td class="zero">—</td>\`).join('')}<td class="num" style="color:var(--gold)">\${fmt(tot)}</td></tr>\`;
+  }).join('');
+  const totRow = \`<tr class="total-row"><td>TOTAL</td>\${FEST_DATES.map(d=>\`<td>\${fmt(colTot[d]||0)}</td>\`).join('')}<td>\${fmt(grandTot)}</td></tr>\`;
+  document.getElementById('tbl-lotacao-wrap').innerHTML = \`<table class="data-table"><thead>\${hdr}</thead><tbody>\${bodyRows}\${totRow}</tbody></table>\`;
+}
+
+async function loadData(){
+  try{
+    const res  = await fetch('/api/data');
+    const json = await res.json();
+    if(!json.data) throw new Error('Sem dados');
+    render(json.data);
+    document.getElementById('loading').style.display='none';
+    document.getElementById('content').style.display='block';
+    document.getElementById('status-dot').className='status-dot green';
+    const ts = json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '—';
+    document.getElementById('status-text').textContent = 'Dados ao vivo · '+ts;
+    document.getElementById('last-upd').textContent    = 'Atualizado: '+ts;
+  } catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('content').style.display='block';
+    document.getElementById('status-dot').className='status-dot red';
+    document.getElementById('status-text').textContent = 'Erro: '+e.message;
   }
 }
 document.addEventListener('DOMContentLoaded', loadData);
