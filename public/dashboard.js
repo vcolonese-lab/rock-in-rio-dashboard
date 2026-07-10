@@ -181,41 +181,6 @@ function renderAll() {
       </div>
     </div>
 
-    <!-- RANKING -->
-    <div class="section-heading"><h2>Ranking de Ocupação</h2><div class="section-divider"></div></div>
-    <div class="ranking-grid">
-      <div class="chart-card">
-        <div class="chart-title">Locais</div>
-        <div class="chart-subtitle">Por Ingressos Vendidos</div>
-        <div id="ranking-locais"></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Horários de Saída</div>
-        <div class="chart-subtitle">Por Volume de Ingressos</div>
-        <div id="ranking-horarios"></div>
-      </div>
-    </div>
-
-    <!-- CHARTS ROW 1 -->
-    <div class="section-heading"><h2>Distribuição de Vendas</h2><div class="section-divider"></div></div>
-    <div class="main-grid">
-      <div class="chart-card full">
-        <div class="chart-title">Ranking</div>
-        <div class="chart-subtitle">Ingressos por Local</div>
-        <canvas id="locaisChart" height="100"></canvas>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Cronograma</div>
-        <div class="chart-subtitle">Vendas por Data do Festival</div>
-        <canvas id="dateChart"></canvas>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Horários</div>
-        <div class="chart-subtitle">Ingressos por Horário de Saída</div>
-        <canvas id="timeChart"></canvas>
-      </div>
-    </div>
-
     <!-- HISTÓRICO DE EDIÇÕES -->
     <div class="section-heading"><h2>Série Histórica — Edições do Rock in Rio</h2><div class="section-divider"></div></div>
     <div class="main-grid">
@@ -229,39 +194,10 @@ function renderAll() {
       </div>
     </div>
 
-    <!-- HEATMAP -->
-    <div class="section-heading"><h2>Heatmap Local × Data</h2><div class="section-divider"></div></div>
-    <div style="padding:20px 40px">
-      <div class="chart-card"><div class="heatmap-wrap" id="heatmap-container"></div></div>
-    </div>
+    `;
 
-    <!-- EVENTS TABLE -->
-    <div class="section-heading"><h2>Tabela de Eventos</h2><div class="section-divider"></div></div>
-    <div class="table-section">
-      <div class="table-controls">
-        <input class="search-input" id="search" placeholder="Buscar local..." oninput="filterTable(this.value)">
-      </div>
-      <div class="chart-card" style="overflow-x:auto">
-        <table class="events-table" id="evTable">
-          <thead><tr>
-            <th onclick="sortTable('name')">Local ↕</th>
-            <th onclick="sortTable('sold')">Ingressos ↕</th>
-            <th onclick="sortTable('revenue')">Subtotal ↕</th>
-            <th onclick="sortTable('shows')">Shows ↕</th>
-            <th onclick="sortTable('reserved')" style="color:#f4a261">Reservados ↕</th>
-            <th onclick="sortTable('cancelled')" style="color:#e63946">Cancelados ↕</th>
-          </tr></thead>
-          <tbody id="evTbody"></tbody>
-        </table>
-      </div>
-    </div>`;
-
-  renderCharts(events, byDate, byTime);
   renderHistoricoChart();
-  renderHeatmap(events, byDate, _rawShows);
   renderProjection();
-  renderRanking(events, byTime);
-  renderTable(events);
 }
 
 function renderCharts(events, byDate, byTime) {
