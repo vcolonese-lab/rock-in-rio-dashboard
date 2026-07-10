@@ -2475,6 +2475,23 @@ ${SHARED_HEADER_CSS}
       <span style="font-weight:700;color:var(--text)">% vendido neste ponto por edição: </span>
       <span id="hist-detail-text"></span>
     </div>
+
+    <!-- Card destaque: Total até fim do festival -->
+    <div id="proj-festival-card" style="display:none;margin-top:16px;background:linear-gradient(135deg,#1a0a2e 0%,#0d1f2d 100%);border:1px solid #5b3d8c;border-radius:12px;padding:20px 24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#b77ef7;text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px">🎪 Projeção Total — Fim do Festival (13/Set/2026)</div>
+          <div style="font-size:11px;color:#8a7aa0;margin-bottom:4px" id="proj-festival-sub">Curva histórica × fator pós-início médio de — edições</div>
+          <div style="font-size:11px;color:#8a7aa0">Inclui aceleração pré-festival <strong style="color:#b77ef7">+</strong> vendas durante os 9 dias de shows</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:#8a7aa0;margin-bottom:2px">Total projetado até 13/Set</div>
+          <div style="font-size:38px;font-weight:900;color:#b77ef7;line-height:1" id="proj-festival-total">—</div>
+          <div style="font-size:12px;color:#8a7aa0;margin-top:4px">ingressos · <span id="proj-festival-add" style="color:#ffd700;font-weight:700">—</span> ainda a vender</div>
+          <div style="font-size:11px;color:#5b8dee;margin-top:6px" id="proj-festival-vs2024"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Comparativo Histórico -->
@@ -2594,13 +2611,13 @@ async function loadData(){
     document.getElementById('proj-days-rem').textContent = json.daysLeft;
     document.getElementById('proj-total').textContent    = fmt(json.projectedTotal);
 
-    // ── Projeção com Curva Histórica ──
-    // Usa HIST_CD e HIST_DATA (embutidos abaixo) para calcular a % média vendida
-    // até o countdown atual e derivar o total projetado com aceleração
+    // ── Projeção com Curva Histórica + Total Fim do Festival ──
     (function() {
       const cd = json.daysLeft;
       const HIST_TOTALS = [107861, 93218, 140852, 175959, 185316];
       const HIST_YEARS  = [2015, 2017, 2019, 2022, 2024];
+
+      // ── Parte 1: % vendido no countdown atual → projeta total em D-0 ──
       const row = HIST_CD[cd] || HIST_CD[cd+1] || HIST_CD[cd-1] || null;
       if (!row) return;
 
@@ -2610,13 +2627,12 @@ async function loadData(){
         const cum = row[i] || 0;
         if (cum > 0 && total > 0) {
           const pct = cum / total;
-          pctSum  += pct;
+          pctSum += pct;
           pctCount++;
           details.push(HIST_YEARS[i]+': '+Math.round(pct*100)+'%');
         }
       });
-
-      if (pctCount < 2) return; // dados insuficientes
+      if (pctCount < 2) return;
 
       const avgPctSoFar   = pctSum / pctCount;
       const projHistTotal = Math.round(json.totalTks / avgPctSoFar);
@@ -2630,16 +2646,52 @@ async function loadData(){
 
       if (upliftPct > 0) {
         document.getElementById('hist-uplift').innerHTML =
-          '<span style="color:#2ec27e;font-weight:700">⬆ +'+upliftPct+'%</span> vs ritmo constante · aceleração de vendas esperada nos últimos '+cd+' dias';
+          '<span style="color:#2ec27e;font-weight:700">⬆ +'+upliftPct+'%</span> vs ritmo constante · aceleração esperada nos últimos '+cd+' dias';
       } else if (upliftPct < 0) {
         document.getElementById('hist-uplift').innerHTML =
           '<span style="color:var(--accent);font-weight:700">⬇ '+upliftPct+'%</span> vs ritmo constante';
       }
-
       if (details.length > 0) {
         document.getElementById('hist-detail').style.display = 'block';
         document.getElementById('hist-detail-text').textContent = details.join(' · ');
       }
+
+      // ── Parte 2: fator pós-início → projeta total no fim do festival (D+9 = 13/Set) ──
+      // Para cada edição: fator = acumulado_D+9 / acumulado_D-0
+      // D+9 = key '-9' no HIST_CD
+      const rowD0   = HIST_CD[0]   || [0,0,0,0,0];
+      const rowDend = HIST_CD['-9'] || HIST_CD['-8'] || HIST_CD['-10'] || [0,0,0,0,0];
+
+      let factorSum = 0, factorCount = 0;
+      const factorDetails = [];
+      HIST_TOTALS.forEach((_, i) => {
+        const atStart = rowD0[i];
+        const atEnd   = rowDend[i];
+        if (atStart > 0 && atEnd > 0) {
+          const f = atEnd / atStart;
+          factorSum += f;
+          factorCount++;
+          factorDetails.push(HIST_YEARS[i]+': ×'+f.toFixed(2));
+        }
+      });
+
+      if (factorCount < 2) return;
+
+      const avgFactor      = factorSum / factorCount;
+      const projFestTotal  = Math.round(projHistTotal * avgFactor);
+      const projFestAdd    = projFestTotal - json.totalTks;
+      const vs2024         = 185316; // total 2024
+      const vs2024Pct      = Math.round((projFestTotal / vs2024 - 1) * 100);
+
+      document.getElementById('proj-festival-card').style.display  = 'block';
+      document.getElementById('proj-festival-total').textContent   = fmt(projFestTotal);
+      document.getElementById('proj-festival-add').textContent     = fmt(projFestAdd);
+      document.getElementById('proj-festival-sub').textContent     =
+        'Curva histórica × fator pós-início médio de '+factorCount+' edições (×'+avgFactor.toFixed(2)+')';
+      document.getElementById('proj-festival-vs2024').innerHTML    =
+        vs2024Pct >= 0
+          ? '<span style="color:#2ec27e">▲ +'+vs2024Pct+'%</span> vs 2024 ('+fmt(vs2024)+')'
+          : '<span style="color:var(--accent)">▼ '+vs2024Pct+'%</span> vs 2024 ('+fmt(vs2024)+')';
     })();
 
     // ── Comparativo ──
