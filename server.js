@@ -2350,8 +2350,14 @@ ${SHARED_HEADER_CSS}
   .comp-table tr.row-current td.col-cd{color:var(--green)}
   .comp-table tr.row-current td.col-2026{color:var(--green);font-size:13px}
   .col-2026{color:var(--accent);font-weight:700}
+  .col-daily{color:#b0b8cc;border-left:1px solid #222a38}
+  .comp-table th:nth-child(n+8){border-left:1px solid #222a38}
+  .diff-pos{color:#2ec27e;font-weight:700}
+  .diff-neg{color:#e63946;font-weight:700}
   .growth-pos{color:var(--green);font-size:10px;margin-left:3px}
   .growth-neg{color:var(--accent);font-size:10px;margin-left:3px}
+  .comp-table thead tr:first-child th{position:sticky;top:0;z-index:3}
+  .comp-table thead tr:nth-child(2) th{position:sticky;top:29px;z-index:3}
   @media(max-width:768px){
     header,.content{padding-left:16px;padding-right:16px}
     .charts-row{grid-template-columns:1fr}
@@ -2660,10 +2666,10 @@ function renderComparativo(json) {
   const cd2026 = build2026Countdown(json.dailyData || []);
   const currentCd = typeof json.daysLeft === 'number' ? json.daysLeft : 56;
 
-  const YR_LABELS = ['2015','2017','2019','2022','2024','2026'];
+  const YR_LABELS = ['2015','2017','2019','2022','2024','2026 ⚡'];
   const YR_COLORS = ['#748ffc','#f4a261','#2ec27e','#9b59b6','#1abc9c','#e63946'];
 
-  // Coleta todas as chaves numéricas disponíveis
+  // Coleta todas as chaves numéricas disponíveis, ordena do maior para menor (D-180 → D+10)
   const allKeys = Object.keys(HIST_CD).map(Number).sort((a,b)=>b-a);
 
   // Filtra: mostra apenas linhas com ao menos um dado > 0
@@ -2672,9 +2678,28 @@ function renderComparativo(json) {
     return row.some(v=>v>0) || (cd2026[cd] != null && cd2026[cd] > 0);
   });
 
+  // Pré-calcula deltas diários para 2024 e 2026
+  // delta[cd] = acumulado[cd] - acumulado[cd+1] (D-(cd+1) é o dia anterior)
+  function dailyDelta2024(cd) {
+    const cur  = (HIST_CD[cd]  || [0,0,0,0,0])[4] || 0;
+    const prev = (HIST_CD[cd+1]|| [0,0,0,0,0])[4] || 0;
+    return cur > 0 ? Math.max(0, cur - prev) : null;
+  }
+  function dailyDelta2026(cd) {
+    const cur  = cd2026[cd]   != null ? cd2026[cd]   : null;
+    const prev = cd2026[cd+1] != null ? cd2026[cd+1] : 0;
+    return cur != null ? Math.max(0, cur - prev) : null;
+  }
+
   function fmtN(v) {
     if (v == null || v === 0) return '<span style="color:#3a3f4a">—</span>';
     return Number(v).toLocaleString('pt-BR');
+  }
+  function fmtDiff(diff) {
+    if (diff == null) return '<span style="color:#3a3f4a">—</span>';
+    const sign = diff >= 0 ? '+' : '';
+    const cls  = diff >= 0 ? 'diff-pos' : 'diff-neg';
+    return '<span class="'+cls+'">'+sign+Number(diff).toLocaleString('pt-BR')+'</span>';
   }
   function growthBadge(curr, prev) {
     if (!prev || !curr || prev === 0) return '';
@@ -2683,29 +2708,56 @@ function renderComparativo(json) {
     return ' <span class="'+cls+'">'+(pct>=0?'+':'')+pct.toFixed(0)+'%</span>';
   }
 
-  let html = '<table class="comp-table"><thead><tr>';
-  html += '<th style="min-width:56px">D-N</th>';
+  // ── Cabeçalho com dois grupos ──────────────────────────────────────────────
+  let html = '<table class="comp-table"><thead>';
+
+  // Linha 1 — grupo de colunas
+  html += '<tr>';
+  html += '<th rowspan="2" style="min-width:56px;vertical-align:bottom">D-N</th>';
+  html += '<th colspan="6" style="text-align:center;border-bottom:1px solid #2a3040;padding-bottom:4px">Ingressos Acumulados</th>';
+  html += '<th colspan="3" style="text-align:center;border-bottom:1px solid #2a3040;padding-bottom:4px;color:#aaa">Vendas no Dia</th>';
+  html += '</tr>';
+
+  // Linha 2 — sub-cabeçalhos
+  html += '<tr>';
   YR_LABELS.forEach((y,i) => {
-    html += '<th style="color:'+YR_COLORS[i]+'">'+y+(y==='2026'?' ⚡':'')+'</th>';
+    html += '<th style="color:'+YR_COLORS[i]+'">'+y+'</th>';
   });
-  html += '</tr></thead><tbody>';
+  html += '<th style="color:#1abc9c">Dia/2024</th>';
+  html += '<th style="color:#e63946">Dia/2026 ⚡</th>';
+  html += '<th style="color:#aaa">Δ 26-24</th>';
+  html += '</tr>';
+
+  html += '</thead><tbody>';
 
   activeKeys.forEach(cd => {
-    const hist = HIST_CD[cd] || [0,0,0,0,0];
-    const v2026 = cd2026[cd] != null ? cd2026[cd] : null;
-    const isCur = cd === currentCd;
+    const hist   = HIST_CD[cd] || [0,0,0,0,0];
+    const v2026  = cd2026[cd]  != null ? cd2026[cd] : null;
+    const isCur  = cd === currentCd;
     const rowCls = isCur ? ' class="row-current"' : '';
     const label  = cd >= 0 ? 'D-'+cd : 'D+'+Math.abs(cd);
+
+    // Deltas diários
+    const d24  = dailyDelta2024(cd);
+    const d26  = dailyDelta2026(cd);
+    const diff = (d24 != null && d26 != null) ? (d26 - d24) : null;
 
     html += '<tr'+rowCls+'>';
     html += '<td class="col-cd">'+label+(isCur?' ◀':'')+'</td>';
 
+    // Acumulados históricos (2015–2024)
     hist.forEach(v => { html += '<td>'+(v ? fmtN(v) : '<span style="color:#3a3f4a">—</span>')+'</td>'; });
 
-    // 2026
+    // Acumulado 2026
     const prev2024 = hist[4] || 0;
     const badge = (v2026 && prev2024) ? growthBadge(v2026, prev2024) : '';
     html += '<td class="col-2026">'+( v2026 ? fmtN(v2026)+badge : '<span style="color:#3a3f4a">—</span>' )+'</td>';
+
+    // Vendas no dia
+    html += '<td class="col-daily">'+fmtN(d24)+'</td>';
+    html += '<td class="col-daily col-2026">'+( d26 != null ? fmtN(d26) : '<span style="color:#3a3f4a">—</span>' )+'</td>';
+    html += '<td class="col-daily">'+fmtDiff(diff)+'</td>';
+
     html += '</tr>';
   });
 
