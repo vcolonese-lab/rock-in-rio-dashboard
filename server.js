@@ -2305,6 +2305,7 @@ function getVelocidadeHTML(username) {
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Velocidade de Vendas — Rock in Rio 2026</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 ${SHARED_CSS_VARS}
 ${SHARED_HEADER_CSS}
@@ -2335,6 +2336,22 @@ ${SHARED_HEADER_CSS}
   .trend-up{color:var(--green)} .trend-down{color:var(--accent)} .trend-flat{color:var(--gold)}
   .accel-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;margin-top:6px}
   .accel-pos{background:#0d2a1a;color:var(--green)} .accel-neg{background:#2a0d0d;color:var(--accent)} .accel-flat{background:#2a2a0d;color:var(--gold)}
+  /* ── COMPARATIVO TABLE ── */
+  .comp-wrap{overflow-x:auto;max-height:520px;overflow-y:auto}
+  .comp-table{border-collapse:collapse;min-width:100%;font-size:12px}
+  .comp-table th{position:sticky;top:0;z-index:2;background:var(--surface2);padding:8px 12px;text-align:right;
+    font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);
+    border-bottom:2px solid var(--border);white-space:nowrap}
+  .comp-table th.col-cd{text-align:center;min-width:54px}
+  .comp-table td{padding:7px 12px;text-align:right;border-bottom:1px solid #1a1f2a;white-space:nowrap}
+  .comp-table td.col-cd{text-align:center;font-weight:700;color:var(--muted);font-size:11px}
+  .comp-table tr:hover td{background:var(--surface2)}
+  .comp-table tr.row-current td{background:#0d2a1a!important;font-weight:700}
+  .comp-table tr.row-current td.col-cd{color:var(--green)}
+  .comp-table tr.row-current td.col-2026{color:var(--green);font-size:13px}
+  .col-2026{color:var(--accent);font-weight:700}
+  .growth-pos{color:var(--green);font-size:10px;margin-left:3px}
+  .growth-neg{color:var(--accent);font-size:10px;margin-left:3px}
   @media(max-width:768px){
     header,.content{padding-left:16px;padding-right:16px}
     .charts-row{grid-template-columns:1fr}
@@ -2416,6 +2433,16 @@ ${SHARED_HEADER_CSS}
         <div class="proj-sub">até o início do festival</div>
       </div>
     </div>
+  </div>
+
+  <!-- Comparativo Histórico -->
+  <div class="section" id="section-comp">
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>📋 Comparativo Histórico — Dia a Dia por Edição</span>
+      <button onclick="exportComparativo()" class="btn btn-secondary" style="font-size:11px;padding:6px 12px">↓ XLS Comparativo</button>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Ingressos acumulados por dias antes do festival (D-0 = dia do 1º show). Linha verde = hoje.</p>
+    <div class="comp-wrap" id="comp-table-wrap"><div style="color:var(--muted);padding:20px;text-align:center">Carregando...</div></div>
   </div>
 
 </div>
@@ -2525,6 +2552,9 @@ async function loadData(){
     document.getElementById('proj-days-rem').textContent = 'em '+json.daysLeft+' dias restantes';
     document.getElementById('proj-total').textContent    = fmt(json.projectedTotal);
 
+    // ── Comparativo ──
+    renderComparativo(json);
+
   } catch(e){
     document.getElementById('loading').style.display='none';
     document.getElementById('content').style.display='block';
@@ -2532,6 +2562,173 @@ async function loadData(){
     document.getElementById('status-text').textContent='Erro: '+e.message;
   }
 }
+// ── Dados históricos por edição ──────────────────
+const HIST_DATA = [
+  { year:2015, vendas:107861 },
+  { year:2017, vendas:93218  },
+  { year:2019, vendas:140852 },
+  { year:2022, vendas:175959 },
+  { year:2024, vendas:185316 },
+];
+
+// Ingressos acumulados por countdown (D-N = N dias antes do 1º show)
+// Cada valor: [2015, 2017, 2019, 2022, 2024]
+const HIST_CD = {
+  180:[0,0,0,0,0],179:[0,0,0,0,0],178:[0,0,0,37,0],177:[0,0,0,53,0],
+  176:[0,0,0,73,0],175:[0,0,0,325,0],174:[0,0,0,532,0],173:[0,0,0,622,0],
+  172:[0,0,0,695,0],171:[0,0,0,737,0],170:[0,0,0,786,0],169:[0,0,12558,835,0],
+  168:[0,0,13329,1259,0],167:[0,0,13670,1551,0],166:[0,0,14036,1654,0],
+  165:[0,0,14334,1774,0],164:[0,0,14609,1906,0],163:[0,0,14781,1994,0],
+  162:[0,0,14987,2081,0],161:[0,0,15163,2214,0],160:[0,0,15298,2291,0],
+  159:[0,0,15398,2360,44],158:[0,0,15570,2459,105],157:[0,0,15742,2595,140],
+  156:[0,0,15900,2677,1721],155:[0,0,16040,2811,2220],154:[0,0,16198,2950,2505],
+  153:[0,0,16304,3067,2654],152:[0,0,16457,3134,2832],151:[0,0,16566,3224,3009],
+  150:[0,0,16691,3466,3161],149:[0,0,16830,4202,3252],148:[0,0,16935,5763,3367],
+  147:[0,0,17060,6446,3461],146:[0,0,17201,6822,3528],145:[0,0,17360,7149,3607],
+  144:[0,0,17497,7540,3683],143:[0,0,17689,7846,3757],142:[0,0,17806,8187,3828],
+  141:[0,0,17939,8471,3892],140:[0,0,18026,8712,3967],139:[0,0,18108,8871,4023],
+  138:[0,0,18204,9017,4090],137:[0,0,18365,9165,4233],136:[0,0,18489,9375,4357],
+  135:[0,0,18617,9575,4461],134:[0,0,18748,9708,4611],133:[0,0,18836,9863,4721],
+  132:[0,0,18922,9975,4815],131:[0,0,18983,10026,4926],130:[0,0,19095,10102,5067],
+  129:[0,0,19233,10259,5186],128:[0,0,19365,10437,5318],127:[0,0,19456,10604,5398],
+  126:[0,0,19539,10766,5521],125:[0,0,19604,10878,5577],124:[0,0,19723,10967,5684],
+  123:[0,0,19873,11060,5872],122:[0,0,20000,11225,6197],121:[0,0,20091,11340,6370],
+  120:[0,0,20176,11473,6547],119:[0,0,20250,11628,6681],118:[0,0,20355,11735,6867],
+  117:[0,0,20489,11832,7117],116:[0,0,20655,11931,8820],115:[0,0,20747,12082,8914],
+  114:[0,0,20933,12242,8940],113:[0,0,21462,12365,8948],112:[0,0,21981,12483,8963],
+  111:[0,0,22176,12577,8963],110:[0,0,22369,12673,8963],109:[0,0,22626,12798,8963],
+  108:[0,0,22823,13005,8963],107:[0,0,23010,13119,8965],106:[0,0,23144,13280,8965],
+  105:[0,0,23262,13404,8967],104:[0,0,23389,13504,8967],103:[0,0,23575,13603,8981],
+  102:[0,0,23793,13741,11377],101:[0,0,23950,13873,13251],100:[0,0,24080,14038,17401],
+  99:[0,0,24280,14188,18534],98:[0,0,24405,14326,19312],97:[0,0,24520,14409,19834],
+  96:[0,0,24693,14476,20423],95:[0,0,24889,14579,21031],94:[0,0,25113,15429,21594],
+  93:[0,0,25289,16008,22028],92:[0,0,25457,16333,22469],91:[0,0,25613,16646,22763],
+  90:[0,0,25749,16963,22963],89:[0,0,25956,17456,23204],88:[0,0,26205,18023,24034],
+  87:[0,0,26330,18718,24357],86:[0,1453,26535,19454,24671],85:[0,2426,26578,19973,25040],
+  84:[0,2922,26521,20490,25278],83:[0,3389,26642,20885,25436],82:[0,3815,26813,21040,25667],
+  81:[0,4531,27000,21203,25982],80:[0,5208,27181,21519,26229],79:[0,5740,27372,21764,26518],
+  78:[0,6079,27478,22551,26711],77:[0,6431,27608,22766,26908],76:[0,6660,27747,22951,27105],
+  75:[0,6901,27894,23127,27365],74:[0,7290,28082,23336,27723],73:[1035,7649,28266,23583,28031],
+  72:[2254,7944,28491,23930,28288],71:[3473,8071,28655,24198,28515],70:[3473,8300,28772,24388,28746],
+  69:[4072,8457,28833,24621,28954],68:[4671,8651,28950,24784,29189],67:[5270,8968,29184,24976,29525],
+  66:[8088,9358,29397,25342,29875],65:[10907,9776,29586,25705,30218],64:[11769,10939,29781,26016,30516],
+  63:[12632,11678,29923,26314,30922],62:[13494,12093,30046,26535,31218],61:[14357,12648,30237,26740,31631],
+  60:[15219,13237,30430,26999,32111],59:[16082,13852,30640,27294,32540],58:[16944,14274,30876,27641,32961],
+  57:[18385,14598,31107,27980,33315],56:[18706,14904,31351,28298,33621],55:[19028,15089,31564,28538,33847],
+  54:[19350,15461,31934,28803,34182],53:[19671,15891,32301,29113,34630],52:[20729,16314,32654,29567,35125],
+  51:[21786,16626,33059,30003,35615],50:[22844,16971,33722,30443,36104],49:[23901,17272,34177,30851,36489],
+  48:[24959,17550,34486,31209,36804],47:[26016,17984,34894,31437,37158],46:[27074,18540,35339,31867,37805],
+  45:[28279,19036,35864,32371,38655],44:[29484,19557,36346,32894,39709],43:[30689,20027,36697,33371,40632],
+  42:[31136,20554,37062,33806,41665],41:[31582,21017,37357,34275,42468],40:[32029,21684,37789,34649,43412],
+  39:[32476,22454,38284,35116,44648],38:[34221,23550,38734,35718,46754],37:[35966,24410,39423,36250,48191],
+  36:[37339,25105,40311,37037,49443],35:[38283,25694,40788,37882,50414],34:[39228,26208,41200,38731,51334],
+  33:[40172,26990,41684,39486,52659],32:[41117,28291,42384,40362,54461],31:[42061,30191,42996,41664,56597],
+  30:[43656,32449,43627,42988,59109],29:[45252,33338,44328,44836,60946],28:[46847,34012,45054,46720,63526],
+  27:[47134,34352,45473,48209,64616],26:[47420,34992,46109,49704,65912],25:[47707,35738,46960,51385,67932],
+  24:[48828,36453,47985,53712,69745],23:[49948,37196,49361,56757,72174],22:[51069,38060,50413,60073,73985],
+  21:[52190,38786,51275,62975,75288],20:[52604,39366,52192,65019,76393],19:[53019,39955,53337,66609,78241],
+  18:[53433,42205,54864,68201,80292],17:[56580,43348,56288,70674,82231],16:[58921,44728,57679,74097,84314],
+  15:[61545,45896,59104,76742,86248],14:[61766,46491,60277,79120,88353],13:[64565,47302,61260,81581,90090],
+  12:[64595,47708,62835,83483,92819],11:[64613,48897,65055,85683,97086],10:[66608,50157,67244,88818,101552],
+  9:[68660,51290,69340,92386,106305],8:[70712,51923,71549,96574,110663],7:[75893,53308,73506,100007,114850],
+  6:[79079,54093,75384,103512,118942],5:[82264,54528,78143,106633,123814],4:[85450,55823,82618,110301,131392],
+  3:[88636,62842,87217,116105,138472],2:[89835,66573,92178,123617,145703],1:[91034,71406,97758,131487,152402],
+  0:[92233,75121,104366,140779,159223],
+  '-1':[93718,77305,109777,146022,164418],'-2':[95203,79079,113942,151738,168077],
+  '-3':[96284,82590,117384,159711,171396],'-4':[97365,85381,119019,166626,174643],
+  '-5':[100648,88250,125685,171420,178524],'-6':[102910,90822,130937,172796,181327],
+  '-7':[105173,92489,135652,173514,183790],'-8':[107054,93218,139125,173878,185312],
+  '-9':[107861,93218,140660,174954,185316],'-10':[107861,93218,140852,175959,185316]
+};
+
+// Converte dailyData (array {date,tks}) → mapa countdown→acumulado para 2026
+function build2026Countdown(dailyData) {
+  const FESTIVAL = new Date('2026-09-04T00:00:00-03:00');
+  const sorted = [...(dailyData||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  let cum = 0;
+  const result = {};
+  for (const d of sorted) {
+    cum += d.tks || 0;
+    const dt = new Date(d.date + 'T12:00:00-03:00');
+    const cd = Math.round((FESTIVAL - dt) / 86400000);
+    result[cd] = cum;
+  }
+  return result;
+}
+
+function renderComparativo(json) {
+  const cd2026 = build2026Countdown(json.dailyData || []);
+  const currentCd = typeof json.daysLeft === 'number' ? json.daysLeft : 56;
+
+  const YR_LABELS = ['2015','2017','2019','2022','2024','2026'];
+  const YR_COLORS = ['#748ffc','#f4a261','#2ec27e','#9b59b6','#1abc9c','#e63946'];
+
+  // Coleta todas as chaves numéricas disponíveis
+  const allKeys = Object.keys(HIST_CD).map(Number).sort((a,b)=>b-a);
+
+  // Filtra: mostra apenas linhas com ao menos um dado > 0
+  const activeKeys = allKeys.filter(cd => {
+    const row = HIST_CD[cd] || [0,0,0,0,0];
+    return row.some(v=>v>0) || (cd2026[cd] != null && cd2026[cd] > 0);
+  });
+
+  function fmtN(v) {
+    if (v == null || v === 0) return '<span style="color:#3a3f4a">—</span>';
+    return Number(v).toLocaleString('pt-BR');
+  }
+  function growthBadge(curr, prev) {
+    if (!prev || !curr || prev === 0) return '';
+    const pct = ((curr - prev) / prev * 100);
+    const cls = pct >= 0 ? 'growth-pos' : 'growth-neg';
+    return ' <span class="'+cls+'">'+(pct>=0?'+':'')+pct.toFixed(0)+'%</span>';
+  }
+
+  let html = '<table class="comp-table"><thead><tr>';
+  html += '<th style="min-width:56px">D-N</th>';
+  YR_LABELS.forEach((y,i) => {
+    html += '<th style="color:'+YR_COLORS[i]+'">'+y+(y==='2026'?' ⚡':'')+'</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  activeKeys.forEach(cd => {
+    const hist = HIST_CD[cd] || [0,0,0,0,0];
+    const v2026 = cd2026[cd] != null ? cd2026[cd] : null;
+    const isCur = cd === currentCd;
+    const rowCls = isCur ? ' class="row-current"' : '';
+    const label  = cd >= 0 ? 'D-'+cd : 'D+'+Math.abs(cd);
+
+    html += '<tr'+rowCls+'>';
+    html += '<td class="col-cd">'+label+(isCur?' ◀':'')+'</td>';
+
+    hist.forEach(v => { html += '<td>'+(v ? fmtN(v) : '<span style="color:#3a3f4a">—</span>')+'</td>'; });
+
+    // 2026
+    const prev2024 = hist[4] || 0;
+    const badge = (v2026 && prev2024) ? growthBadge(v2026, prev2024) : '';
+    html += '<td class="col-2026">'+( v2026 ? fmtN(v2026)+badge : '<span style="color:#3a3f4a">—</span>' )+'</td>';
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('comp-table-wrap').innerHTML = html;
+
+  // Scroll para a linha corrente
+  setTimeout(() => {
+    const cur = document.querySelector('.row-current');
+    if (cur) cur.scrollIntoView({ block:'center', behavior:'smooth' });
+  }, 300);
+}
+
+function exportComparativo() {
+  if (typeof XLSX === 'undefined') { alert('SheetJS ainda carregando, tente em breve.'); return; }
+  const table = document.querySelector('.comp-table');
+  if (!table) { alert('Tabela ainda não carregada.'); return; }
+  const ws = XLSX.utils.table_to_sheet(table);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Comparativo Histórico');
+  XLSX.writeFile(wb, 'comparativo-historico-RiR.xlsx');
+}
+
 document.addEventListener('DOMContentLoaded', loadData);
 <\/script>
 </body></html>`;
