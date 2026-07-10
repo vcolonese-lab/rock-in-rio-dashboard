@@ -2424,23 +2424,56 @@ ${SHARED_HEADER_CSS}
   <!-- Projeção -->
   <div class="section">
     <div class="section-title">🔮 Projeção até o Festival (04/Set/2026)</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Baseado no ritmo dos últimos 7 dias (<span id="proj-rate">—</span> ingressos/dia)</p>
-    <div class="proj-grid">
-      <div class="proj-card">
-        <div class="proj-label">Vendidos até hoje</div>
-        <div class="proj-val trend-up" id="proj-atual">—</div>
-        <div class="proj-sub">ingressos confirmados</div>
+
+    <!-- Linha de status -->
+    <div style="display:flex;align-items:center;gap:20px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="font-size:13px;color:var(--muted)">Vendidos hoje: <strong style="color:var(--green);font-size:16px" id="proj-atual">—</strong></div>
+      <div style="font-size:13px;color:var(--muted)">Dias restantes: <strong style="color:var(--text)" id="proj-days-rem">—</strong></div>
+      <div style="font-size:13px;color:var(--muted)">Ritmo 7 dias: <strong style="color:var(--blue)" id="proj-rate">—</strong>/dia</div>
+    </div>
+
+    <!-- Dois cenários lado a lado -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+      <!-- Cenário 1: Ritmo Constante -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid #5b8dee;border-radius:10px;padding:18px">
+        <div style="font-size:10px;font-weight:700;color:#5b8dee;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">📊 Ritmo Constante</div>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5">Média dos últimos 7 dias aplicada uniformemente até o festival</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Adicional</div>
+            <div style="font-size:24px;font-weight:800;color:#5b8dee" id="proj-add">—</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Total</div>
+            <div style="font-size:24px;font-weight:800;color:#748ffc" id="proj-total">—</div>
+          </div>
+        </div>
       </div>
-      <div class="proj-card">
-        <div class="proj-label">Projeção adicional</div>
-        <div class="proj-val" style="color:var(--blue)" id="proj-add">—</div>
-        <div class="proj-sub" id="proj-days-rem">em — dias restantes</div>
+
+      <!-- Cenário 2: Curva Histórica -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid #2ec27e;border-radius:10px;padding:18px">
+        <div style="font-size:10px;font-weight:700;color:#2ec27e;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">📈 Curva Histórica</div>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5">Média de <span id="hist-years-count">—</span> edições: <strong id="hist-pct-sold" style="color:var(--text)">—</strong>% vendido até este ponto — inclui aceleração final</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Adicional</div>
+            <div style="font-size:24px;font-weight:800;color:#2ec27e" id="proj-hist-add">—</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Total</div>
+            <div style="font-size:24px;font-weight:800;color:#ffd700" id="proj-hist-total">—</div>
+          </div>
+        </div>
+        <div id="hist-uplift" style="margin-top:10px;font-size:11px;color:var(--muted)"></div>
       </div>
-      <div class="proj-card">
-        <div class="proj-label">Total Projetado</div>
-        <div class="proj-val" style="color:var(--gold)" id="proj-total">—</div>
-        <div class="proj-sub">até o início do festival</div>
-      </div>
+
+    </div>
+
+    <!-- Detalhe por edição -->
+    <div id="hist-detail" style="margin-top:12px;font-size:11px;color:var(--muted);display:none">
+      <span style="font-weight:700;color:var(--text)">% vendido neste ponto por edição: </span>
+      <span id="hist-detail-text"></span>
     </div>
   </div>
 
@@ -2558,8 +2591,56 @@ async function loadData(){
     document.getElementById('proj-rate').textContent     = fmt(json.avg7);
     document.getElementById('proj-atual').textContent    = fmt(json.totalTks);
     document.getElementById('proj-add').textContent      = fmt(json.projectedRemaining);
-    document.getElementById('proj-days-rem').textContent = 'em '+json.daysLeft+' dias restantes';
+    document.getElementById('proj-days-rem').textContent = json.daysLeft;
     document.getElementById('proj-total').textContent    = fmt(json.projectedTotal);
+
+    // ── Projeção com Curva Histórica ──
+    // Usa HIST_CD e HIST_DATA (embutidos abaixo) para calcular a % média vendida
+    // até o countdown atual e derivar o total projetado com aceleração
+    (function() {
+      const cd = json.daysLeft;
+      const HIST_TOTALS = [107861, 93218, 140852, 175959, 185316];
+      const HIST_YEARS  = [2015, 2017, 2019, 2022, 2024];
+      const row = HIST_CD[cd] || HIST_CD[cd+1] || HIST_CD[cd-1] || null;
+      if (!row) return;
+
+      let pctSum = 0, pctCount = 0;
+      const details = [];
+      HIST_TOTALS.forEach((total, i) => {
+        const cum = row[i] || 0;
+        if (cum > 0 && total > 0) {
+          const pct = cum / total;
+          pctSum  += pct;
+          pctCount++;
+          details.push(HIST_YEARS[i]+': '+Math.round(pct*100)+'%');
+        }
+      });
+
+      if (pctCount < 2) return; // dados insuficientes
+
+      const avgPctSoFar   = pctSum / pctCount;
+      const projHistTotal = Math.round(json.totalTks / avgPctSoFar);
+      const projHistAdd   = projHistTotal - json.totalTks;
+      const upliftPct     = Math.round((projHistTotal / json.projectedTotal - 1) * 100);
+
+      document.getElementById('hist-years-count').textContent = pctCount;
+      document.getElementById('hist-pct-sold').textContent    = Math.round(avgPctSoFar * 100);
+      document.getElementById('proj-hist-add').textContent    = fmt(projHistAdd);
+      document.getElementById('proj-hist-total').textContent  = fmt(projHistTotal);
+
+      if (upliftPct > 0) {
+        document.getElementById('hist-uplift').innerHTML =
+          '<span style="color:#2ec27e;font-weight:700">⬆ +'+upliftPct+'%</span> vs ritmo constante · aceleração de vendas esperada nos últimos '+cd+' dias';
+      } else if (upliftPct < 0) {
+        document.getElementById('hist-uplift').innerHTML =
+          '<span style="color:var(--accent);font-weight:700">⬇ '+upliftPct+'%</span> vs ritmo constante';
+      }
+
+      if (details.length > 0) {
+        document.getElementById('hist-detail').style.display = 'block';
+        document.getElementById('hist-detail-text').textContent = details.join(' · ');
+      }
+    })();
 
     // ── Comparativo ──
     renderComparativo(json);
