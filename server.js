@@ -2886,11 +2886,11 @@ ${SHARED_HEADER_CSS}
     <div class="kpi gold"><div class="kpi-icon">⭐</div><div class="kpi-label">Bandeira #1</div><div class="kpi-val" id="k-top-brand" style="font-size:15px">—</div></div>
   </div>
 
-  <!-- Bancos + Bandeiras -->
+  <!-- Método de Pagamento + Bandeiras -->
   <div class="charts-row">
     <div class="section">
-      <div class="section-title">🏦 Top Bancos</div>
-      <div id="bank-list"></div>
+      <div class="section-title">💳 Método de Pagamento</div>
+      <div id="paytype-list"></div>
     </div>
     <div class="section">
       <div class="section-title">⭐ Bandeiras de Cartão</div>
@@ -2898,15 +2898,15 @@ ${SHARED_HEADER_CSS}
     </div>
   </div>
 
-  <!-- Método de Pagamento (sempre visível) + Tipo Cartão (só com dados) -->
-  <div class="charts-row" id="row-paytype">
-    <div class="section">
-      <div class="section-title">💳 Método de Pagamento</div>
-      <div class="chart-wrap"><canvas id="chartPayType"></canvas></div>
-    </div>
+  <!-- Tipo Cartão + Parcelamento (só com dados) -->
+  <div class="charts-row" id="row-extras" style="display:none">
     <div class="section" id="section-cardtype" style="display:none">
       <div class="section-title">🔵 Tipo de Cartão</div>
       <div class="chart-wrap-sm" style="margin-top:20px"><canvas id="chartCardType"></canvas></div>
+    </div>
+    <div class="section" id="section-install" style="display:none">
+      <div class="section-title">📊 Parcelamento</div>
+      <div class="chart-wrap"><canvas id="chartInstall"></canvas></div>
     </div>
   </div>
 
@@ -2998,36 +2998,33 @@ async function loadData(){
     if(topPt) document.getElementById('k-top-bank').textContent = topPt[0];
     if(json.brandSorted&&json.brandSorted[0]) document.getElementById('k-top-brand').textContent = json.brandSorted[0][0];
 
-    // ── Top Bancos ──
-    const banks   = json.bankSorted||[];
-    const bankMax = banks[0]?.[1]||1;
-    const bankHtml = banks.slice(0,10).map((b,i)=>{
-      const pct = ((b[1]/total)*100).toFixed(1);
+    // ── Método de Pagamento (tabela com barras, substitui Bancos) ──
+    const PT_COLORS = {'Crédito':'#5b8dee','PIX':'#2ec27e','Débito':'#9b59b6','Boleto':'#f4a261','FREE':'#748ffc','PREPAID_CARD':'#1abc9c','GIFT':'#ffd700'};
+    const ptEntries = Object.entries(json.payTypeMap||{}).sort((a,b)=>b[1]-a[1]);
+    const ptMax = ptEntries[0]?.[1]||1;
+    const ptHtml = ptEntries.map((e,i)=>{
+      const pct = ((e[1]/total)*100).toFixed(1);
+      const color = PT_COLORS[e[0]]||'#748ffc';
       return \`<tr>
         <td class="bank-rank \${i<3?'top3':''}">\${i+1}</td>
-        <td class="bank-name">\${b[0]}</td>
-        <td class="bank-bar-td"><div class="bank-bar-wrap"><div class="bank-bar-fill" style="width:\${Math.round(b[1]/bankMax*100)}%"></div></div></td>
-        <td class="bank-count">\${b[1].toLocaleString('pt-BR')}</td>
+        <td class="bank-name">\${e[0]}</td>
+        <td class="bank-bar-td"><div class="bank-bar-wrap"><div class="bank-bar-fill" style="width:\${Math.round(e[1]/ptMax*100)}%;background:\${color}"></div></div></td>
+        <td class="bank-count">\${e[1].toLocaleString('pt-BR')}</td>
         <td class="bank-pct">\${pct}%</td>
       </tr>\`;
     }).join('');
-    document.getElementById('bank-list').innerHTML = '<table class="bank-table">'+bankHtml+'</table>';
+    document.getElementById('paytype-list').innerHTML = '<table class="bank-table">'+ptHtml+'</table>';
 
     // ── Bandeiras ──
     const brands = json.brandSorted||[];
     const brandColors = brands.map(b=>BRAND_COLORS[b[0]]||BLUE_PALETTE[brands.indexOf(b)%BLUE_PALETTE.length]);
     mkChart('chartBrand','doughnut', brands.map(b=>b[0]), brands.map(b=>b[1]), brandColors);
 
-    // ── Método de Pagamento ──
-    const ptEntries = Object.entries(json.payTypeMap||{}).sort((a,b)=>b[1]-a[1]);
-    const PT_COLORS = {'Crédito':'#5b8dee','PIX':'#2ec27e','Débito':'#9b59b6','Boleto':'#f4a261','FREE':'#4a5568','PREPAID_CARD':'#1abc9c','GIFT':'#ffd700'};
-    const ptColors = ptEntries.map(([k])=>PT_COLORS[k]||'#748ffc');
-    if(ptEntries.length>0) mkChart('chartPayType','doughnut', ptEntries.map(e=>e[0]), ptEntries.map(e=>e[1]), ptColors);
-
     // ── Parcelas (só se houver dados) ──
     const inst = json.installSorted||[];
     if(inst.length>0){
       document.getElementById('section-install').style.display='block';
+      document.getElementById('row-extras').style.display='grid';
       mkChart('chartInstall','bar', inst.map(i=>i[0]), inst.map(i=>i[1]), BLUE_PALETTE);
     }
 
@@ -3035,7 +3032,7 @@ async function loadData(){
     const ct = Object.entries(json.cardTypeMap||{}).sort((a,b)=>b[1]-a[1]);
     if(ct.length>0){
       document.getElementById('section-cardtype').style.display='block';
-      document.getElementById('row-paytype').style.gridTemplateColumns='1fr 1fr';
+      document.getElementById('row-extras').style.display='grid';
       mkChart('chartCardType','doughnut', ct.map(c=>c[0]), ct.map(c=>c[1]), ['#5b8dee','#2ec27e','#9b59b6','#e63946']);
     }
 
