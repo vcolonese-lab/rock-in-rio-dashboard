@@ -580,21 +580,6 @@ app.get('/', requireAuth, (req, res) => {
   res.send(getDashboardHTML(req.session.user));
 });
 
-// ── Sub-page: Tempo de Vendas ─────────────────
-app.get('/tempo', requireAuth, (req, res) => {
-  res.send(getTempoHTML(req.session.user));
-});
-
-// ── Sub-page: Produtos & Setores ─────────────
-app.get('/perfil', requireAuth, (req, res) => {
-  res.send(getPerfilHTML(req.session.user));
-});
-
-// ── Sub-page: Análise por Local ───────────────
-app.get('/locais', requireAuth, (req, res) => {
-  res.send(getLocaisHTML(req.session.user));
-});
-
 // ── Sub-page: Lista de Eventos ─────────────
 app.get('/eventos', requireAuth, (req, res) => {
   res.send(getEventosHTML(req.session.user));
@@ -830,21 +815,6 @@ ${SHARED_HEADER_CSS}
 
 <!-- NAV CARDS -->
 <div class="nav-cards">
-  <a href="/locais" class="nav-card" style="border-color:#e8871a44">
-    <div class="nav-card-icon">📍</div>
-    <div><div class="nav-card-title">Análise por Local</div><div class="nav-card-desc">Receita, ingressos, horários e lotação por ponto</div></div>
-    <div class="nav-card-arrow">›</div>
-  </a>
-  <a href="/tempo" class="nav-card">
-    <div class="nav-card-icon">📅</div>
-    <div><div class="nav-card-title">Tempo de Vendas</div><div class="nav-card-desc">Análise por semana e dia da semana</div></div>
-    <div class="nav-card-arrow">›</div>
-  </a>
-  <a href="/perfil" class="nav-card">
-    <div class="nav-card-icon">🎟️</div>
-    <div><div class="nav-card-title">Produtos & Setores</div><div class="nav-card-desc">Breakdown por setor, produto e show</div></div>
-    <div class="nav-card-arrow">›</div>
-  </a>
   <a href="/eventos" class="nav-card">
     <div class="nav-card-icon">🗓️</div>
     <div><div class="nav-card-title">Lista de Eventos</div><div class="nav-card-desc">Todos os shows com status de ocupação</div></div>
