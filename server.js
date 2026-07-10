@@ -674,6 +674,73 @@ app.get('/pagamento', requireAuth, (req, res) => {
   res.send(getPagamentoHTML(req.session.user));
 });
 
+// ── API: velocidade-data endpoint ────────────
+app.get('/api/velocidade-data', requireAuth, (req, res) => {
+  if (!state.data) return res.json({ loading: true });
+
+  const sbd = (state.data.salesByDate || []).filter(d => (d.tks||0) > 0);
+  if (!sbd.length) return res.json({ loading: false, hasData: false });
+
+  const FESTIVAL_START = new Date('2026-09-04T00:00:00-03:00');
+  const now = new Date();
+  const daysLeft = Math.max(0, Math.ceil((FESTIVAL_START - now) / 86400000));
+
+  // Totals
+  const totalTks = sbd.reduce((s,d) => s + (d.tks||0), 0);
+  const totalDays = sbd.length;
+  const avgPerDay = Math.round(totalTks / totalDays);
+
+  // Best day
+  const bestDay = sbd.reduce((best, d) => (d.tks||0) > (best.tks||0) ? d : best, sbd[0]);
+
+  // Last 7 days avg
+  const last7 = sbd.slice(-7);
+  const avg7  = Math.round(last7.reduce((s,d) => s+(d.tks||0), 0) / Math.min(7, last7.length));
+
+  // Last 30 days avg
+  const last30 = sbd.slice(-30);
+  const avg30  = Math.round(last30.reduce((s,d) => s+(d.tks||0), 0) / Math.min(30, last30.length));
+
+  // Weekly grouping (Sunday-based)
+  const weekMap = {};
+  for (const d of sbd) {
+    const dt = new Date(d.date + 'T12:00:00Z');
+    const day = dt.getDay(); // 0=Sun
+    const monday = new Date(dt); monday.setDate(dt.getDate() - ((day+6)%7));
+    const wk = monday.toISOString().substring(0,10);
+    if (!weekMap[wk]) weekMap[wk] = { weekStart: wk, tks: 0, revenue: 0 };
+    weekMap[wk].tks     += d.tks     || 0;
+    weekMap[wk].revenue += d.revenue || 0;
+  }
+  const weeklyData = Object.values(weekMap).sort((a,b) => a.weekStart.localeCompare(b.weekStart));
+
+  // 7-day moving average series
+  const maWindow = 7;
+  const maData = sbd.map((d, i) => {
+    const slice = sbd.slice(Math.max(0, i - maWindow + 1), i + 1);
+    return Math.round(slice.reduce((s,x) => s+(x.tks||0), 0) / slice.length);
+  });
+
+  // Projection: days remaining × avg7
+  const projectedRemaining = avg7 * daysLeft;
+  const projectedTotal     = totalTks + projectedRemaining;
+
+  res.json({
+    loading: false, hasData: true,
+    updated_at: state.lastRefresh ? new Date(state.lastRefresh).toLocaleString('pt-BR') : null,
+    totalTks, totalDays, avgPerDay, avg7, avg30,
+    daysLeft, bestDay, projectedTotal, projectedRemaining,
+    dailyData:  sbd.map(d => ({ date: d.date, tks: d.tks, revenue: d.revenue })),
+    maData,
+    weeklyData
+  });
+});
+
+// ── Sub-page: Velocidade de Vendas ────────────
+app.get('/velocidade', requireAuth, (req, res) => {
+  res.send(getVelocidadeHTML(req.session.user));
+});
+
 // ── Sub-page: Lista de Eventos ─────────────
 app.get('/eventos', requireAuth, (req, res) => {
   res.send(getEventosHTML(req.session.user));
@@ -922,6 +989,11 @@ ${SHARED_HEADER_CSS}
   <a href="/pagamento" class="nav-card" style="border-color:#5b8dee44">
     <div class="nav-card-icon">💳</div>
     <div><div class="nav-card-title">Pagamento × Perfil</div><div class="nav-card-desc">Bandeiras, bancos, parcelamento e perfil do comprador</div></div>
+    <div class="nav-card-arrow">›</div>
+  </a>
+  <a href="/velocidade" class="nav-card" style="border-color:#2ec27e44">
+    <div class="nav-card-icon">🚀</div>
+    <div><div class="nav-card-title">Velocidade de Vendas</div><div class="nav-card-desc">Ritmo diário, tendência e projeção até o festival</div></div>
     <div class="nav-card-arrow">›</div>
   </a>
 </div>
@@ -2216,6 +2288,248 @@ async function loadData(){
     document.getElementById('content').style.display='block';
     document.getElementById('status-dot').className='status-dot red';
     document.getElementById('status-text').textContent = 'Erro: '+e.message;
+  }
+}
+document.addEventListener('DOMContentLoaded', loadData);
+<\/script>
+</body></html>`;
+}
+
+// ─────────────────────────────────────────────
+// VELOCIDADE DE VENDAS PAGE
+// ─────────────────────────────────────────────
+function getVelocidadeHTML(username) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Velocidade de Vendas — Rock in Rio 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+${SHARED_CSS_VARS}
+${SHARED_HEADER_CSS}
+  .content{padding:20px 32px 60px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;position:relative;overflow:hidden}
+  .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
+  .kpi.green::before{background:var(--green)} .kpi.blue::before{background:var(--blue)}
+  .kpi.gold::before{background:var(--gold)}   .kpi.teal::before{background:var(--teal)}
+  .kpi.purple::before{background:var(--purple)} .kpi.red::before{background:var(--accent)}
+  .kpi-icon{font-size:20px;margin-bottom:5px}
+  .kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px;font-weight:700}
+  .kpi-val{font-size:22px;font-weight:800;color:var(--green)}
+  .kpi.blue .kpi-val{color:var(--blue)} .kpi.gold .kpi-val{color:var(--gold)}
+  .kpi.teal .kpi-val{color:var(--teal)} .kpi.purple .kpi-val{color:var(--purple)}
+  .kpi.red .kpi-val{color:var(--accent)}
+  .kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+  .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px}
+  .section-title{font-size:13px;font-weight:700;color:var(--green);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .charts-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:18px}
+  .chart-wrap{position:relative;height:300px}
+  .chart-wrap-sm{position:relative;height:240px}
+  .proj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+  .proj-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
+  .proj-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;font-weight:700}
+  .proj-val{font-size:26px;font-weight:800}
+  .proj-sub{font-size:11px;color:var(--muted);margin-top:4px}
+  .trend-up{color:var(--green)} .trend-down{color:var(--accent)} .trend-flat{color:var(--gold)}
+  .accel-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;margin-top:6px}
+  .accel-pos{background:#0d2a1a;color:var(--green)} .accel-neg{background:#2a0d0d;color:var(--accent)} .accel-flat{background:#2a2a0d;color:var(--gold)}
+  @media(max-width:768px){
+    header,.content{padding-left:16px;padding-right:16px}
+    .charts-row{grid-template-columns:1fr}
+    .kpis{grid-template-columns:1fr 1fr}
+    #status-bar{padding-left:16px;padding-right:16px}
+  }
+</style>
+</head>
+<body>
+
+<div id="loading" style="position:fixed;inset:0;background:rgba(10,12,16,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:9999;font-size:14px;color:var(--muted)">
+  <div style="width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite"></div>
+  <span>Carregando dados de velocidade...</span>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</div>
+
+<header>
+  <div class="header-left">
+    <div class="logo-badge">Rock in Rio 2026</div>
+    <div>
+      <h1>🚀 Velocidade de Vendas</h1>
+      <p id="header-sub">Ritmo diário × metas — atualizado em —</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <a href="/" class="btn btn-back">← Painel</a>
+    <form method="POST" action="/logout" style="margin:0">
+      <button class="btn btn-secondary" type="submit">Sair</button>
+    </form>
+  </div>
+</header>
+
+<div id="status-bar">
+  <span class="status-dot" id="status-dot"></span>
+  <span id="status-text">Conectando...</span>
+</div>
+
+<div class="content" id="content" style="display:none">
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi green"><div class="kpi-icon">🎟️</div><div class="kpi-label">Total Vendidos</div><div class="kpi-val" id="k-total">—</div><div class="kpi-sub" id="k-days">em — dias</div></div>
+    <div class="kpi blue"><div class="kpi-icon">📈</div><div class="kpi-label">Média / Dia</div><div class="kpi-val" id="k-avg">—</div><div class="kpi-sub">histórico total</div></div>
+    <div class="kpi teal"><div class="kpi-icon">⚡</div><div class="kpi-label">Ritmo Atual</div><div class="kpi-val" id="k-avg7">—</div><div class="kpi-sub" id="k-accel"></div></div>
+    <div class="kpi gold"><div class="kpi-icon">🏆</div><div class="kpi-label">Melhor Dia</div><div class="kpi-val" id="k-best">—</div><div class="kpi-sub" id="k-best-date"></div></div>
+    <div class="kpi purple"><div class="kpi-icon">📅</div><div class="kpi-label">Dias Restantes</div><div class="kpi-val" id="k-days-left">—</div><div class="kpi-sub">até 04/Set/2026</div></div>
+  </div>
+
+  <!-- Main chart: vendas diárias + média móvel -->
+  <div class="section">
+    <div class="section-title">📊 Vendas por Dia + Média Móvel (7 dias)</div>
+    <div class="charts-row">
+      <div class="chart-wrap"><canvas id="chartDaily"></canvas></div>
+      <div>
+        <div class="section-title" style="font-size:12px;color:var(--muted)">📆 Vendas por Semana</div>
+        <div class="chart-wrap-sm"><canvas id="chartWeekly"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Projeção -->
+  <div class="section">
+    <div class="section-title">🔮 Projeção até o Festival (04/Set/2026)</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Baseado no ritmo dos últimos 7 dias (<span id="proj-rate">—</span> ingressos/dia)</p>
+    <div class="proj-grid">
+      <div class="proj-card">
+        <div class="proj-label">Vendidos até hoje</div>
+        <div class="proj-val trend-up" id="proj-atual">—</div>
+        <div class="proj-sub">ingressos confirmados</div>
+      </div>
+      <div class="proj-card">
+        <div class="proj-label">Projeção adicional</div>
+        <div class="proj-val" style="color:var(--blue)" id="proj-add">—</div>
+        <div class="proj-sub" id="proj-days-rem">em — dias restantes</div>
+      </div>
+      <div class="proj-card">
+        <div class="proj-label">Total Projetado</div>
+        <div class="proj-val" style="color:var(--gold)" id="proj-total">—</div>
+        <div class="proj-sub">até o início do festival</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function fmt(n){ return (n||0).toLocaleString('pt-BR'); }
+function fmtDate(s){ if(!s)return'—'; const [y,m,d]=s.split('-'); return d+'/'+m+'/'+y; }
+
+function mkLineChart(id, labels, datasets, opts={}){
+  const ctx = document.getElementById(id);
+  if(!ctx) return;
+  return new Chart(ctx,{
+    type:'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ position:'top', labels:{ color:'#7a8499', font:{size:11}, padding:12 }},
+        tooltip:{ callbacks:{ label: ctx=>' '+fmt(ctx.parsed.y)+' ingressos' }}},
+      scales:{
+        x:{ ticks:{ color:'#7a8499', font:{size:10}, maxTicksLimit:12, maxRotation:30 }, grid:{color:'#252d3d'} },
+        y:{ ticks:{ color:'#7a8499', font:{size:11} }, grid:{color:'#252d3d'}, beginAtZero:true }
+      },
+      ...opts
+    }
+  });
+}
+
+async function loadData(){
+  try {
+    const res  = await fetch('/api/velocidade-data');
+    const json = await res.json();
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('content').style.display='block';
+
+    const ts = json.updated_at || '—';
+    document.getElementById('status-dot').className='status-dot green';
+    document.getElementById('status-text').textContent='Dados ao vivo · '+ts;
+    document.getElementById('header-sub').textContent='Ritmo diário × metas — atualizado em '+ts;
+
+    if(!json.hasData){
+      document.getElementById('content').innerHTML='<div style="text-align:center;padding:60px;color:var(--muted)"><div style="font-size:48px;margin-bottom:12px">📋</div><h3>Dados ainda não disponíveis</h3></div>';
+      return;
+    }
+
+    // ── KPIs ──
+    document.getElementById('k-total').textContent    = fmt(json.totalTks);
+    document.getElementById('k-days').textContent     = 'em '+json.totalDays+' dias';
+    document.getElementById('k-avg').textContent      = fmt(json.avgPerDay);
+    document.getElementById('k-avg7').textContent     = fmt(json.avg7)+'/dia';
+    document.getElementById('k-best').textContent     = fmt(json.bestDay?.tks);
+    document.getElementById('k-best-date').textContent = fmtDate(json.bestDay?.date);
+    document.getElementById('k-days-left').textContent = json.daysLeft;
+
+    // Acceleration indicator
+    const accel = json.avg7 - json.avg30;
+    const accelEl = document.getElementById('k-accel');
+    if(accel > 5){
+      accelEl.innerHTML = '<span class="accel-badge accel-pos">↑ Acelerando +'+fmt(accel)+'/dia</span>';
+    } else if(accel < -5){
+      accelEl.innerHTML = '<span class="accel-badge accel-neg">↓ Desacelerando '+fmt(accel)+'/dia</span>';
+    } else {
+      accelEl.innerHTML = '<span class="accel-badge accel-flat">→ Estável (7d vs 30d)</span>';
+    }
+
+    // ── Daily chart ──
+    const daily = json.dailyData || [];
+    const ma    = json.maData    || [];
+    // Show last 60 days for readability
+    const slice = daily.length > 60 ? daily.slice(-60) : daily;
+    const maSlice = ma.length > 60 ? ma.slice(-60) : ma;
+
+    mkLineChart('chartDaily',
+      slice.map(d => fmtDate(d.date)),
+      [
+        { label:'Vendas por Dia', data: slice.map(d=>d.tks), backgroundColor:'rgba(91,141,238,0.15)', borderColor:'#5b8dee', borderWidth:2, fill:true, tension:0.3, pointRadius:2 },
+        { label:'Média Móvel 7d', data: maSlice, borderColor:'#2ec27e', borderWidth:2, fill:false, tension:0.4, pointRadius:0, borderDash:[4,4] }
+      ]
+    );
+
+    // ── Weekly chart ──
+    const wk = json.weeklyData || [];
+    const ctxW = document.getElementById('chartWeekly');
+    if(ctxW && wk.length){
+      new Chart(ctxW,{
+        type:'bar',
+        data:{
+          labels: wk.map(w => { const [y,m,d]=w.weekStart.split('-'); return d+'/'+m; }),
+          datasets:[{ label:'Vendas/Semana', data:wk.map(w=>w.tks), backgroundColor:'rgba(46,194,126,0.7)', borderColor:'#2ec27e', borderWidth:1, borderRadius:4 }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>' '+fmt(ctx.parsed.y)+' ingressos' }}},
+          scales:{
+            x:{ ticks:{ color:'#7a8499', font:{size:10}, maxRotation:45 }, grid:{color:'#252d3d'} },
+            y:{ ticks:{ color:'#7a8499', font:{size:10} }, grid:{color:'#252d3d'}, beginAtZero:true }
+          }
+        }
+      });
+    }
+
+    // ── Projeção ──
+    document.getElementById('proj-rate').textContent     = fmt(json.avg7);
+    document.getElementById('proj-atual').textContent    = fmt(json.totalTks);
+    document.getElementById('proj-add').textContent      = fmt(json.projectedRemaining);
+    document.getElementById('proj-days-rem').textContent = 'em '+json.daysLeft+' dias restantes';
+    document.getElementById('proj-total').textContent    = fmt(json.projectedTotal);
+
+  } catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('content').style.display='block';
+    document.getElementById('status-dot').className='status-dot red';
+    document.getElementById('status-text').textContent='Erro: '+e.message;
   }
 }
 document.addEventListener('DOMContentLoaded', loadData);
