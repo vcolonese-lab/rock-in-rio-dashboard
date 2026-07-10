@@ -76,6 +76,10 @@ function aggregateCrowderData(movements, catalogShows = []) {
   const byDate = {}, byTime = {}, salesByDate = {};
   FESTIVAL_DATES.forEach(d => { byDate[d] = 0; });
 
+  // ── Payment / demographic aggregation maps ──
+  const payTypeMap = {}, bankMap = {}, brandMap = {}, installMap = {}, cardTypeMap = {};
+  const genderMap = {}, ageMap = {}, bankGenderMap = {};
+
   for (const m of tickets) {
     const show   = m.tickets && m.tickets[0] ? m.tickets[0].show   : null;
     const sector = m.tickets && m.tickets[0] ? m.tickets[0].sector : null;
@@ -126,6 +130,58 @@ function aggregateCrowderData(movements, catalogShows = []) {
       if (!salesByDate[saleDate]) salesByDate[saleDate] = { tks: 0, revenue: 0 };
       salesByDate[saleDate].tks     += m.ticketCount || 0;
       salesByDate[saleDate].revenue += m.amount      || 0;
+    }
+
+    // ── Payment / demographic aggregation ──
+    if ((m.ticketCount || 0) > 0) {
+      const pay     = m.payment || m.purchase?.payment || {};
+      const cardObj = m.card    || pay.card            || {};
+      const buyerObj = m.buyer  || m.customer          || {};
+
+      const payType = pay.type || pay.method || pay.paymentMethod || pay.paymentType || '';
+      const bank    = pay.bank || pay.bankName || cardObj.bank || cardObj.bankName || '';
+      const brand   = pay.cardBrand || pay.brand || cardObj.brand || cardObj.cardBrand || '';
+      const instRaw = pay.installments ?? pay.parcelas ?? cardObj.installments ?? null;
+      const install = instRaw != null ? String(instRaw) + '×' : '';
+      const cardType = pay.cardType || pay.card_type || cardObj.type || cardObj.cardType || '';
+      const gender  = String(buyerObj.gender || m.gender || '').toUpperCase();
+      const ageRaw  = buyerObj.age ?? buyerObj.ageGroup ?? m.age ?? m.ageGroup ?? null;
+
+      if (payType) {
+        const pt = payType === 'CREDIT_CARD' ? 'Crédito'
+          : payType === 'PIX'       ? 'PIX'
+          : payType === 'DEBIT_CARD' ? 'Débito'
+          : payType === 'BOLETO'     ? 'Boleto'
+          : payType;
+        payTypeMap[pt] = (payTypeMap[pt] || 0) + 1;
+      }
+      if (bank)    bankMap[bank]   = (bankMap[bank]   || 0) + 1;
+      if (brand)   brandMap[brand] = (brandMap[brand] || 0) + 1;
+      if (install) installMap[install] = (installMap[install] || 0) + 1;
+      if (cardType) {
+        const ct = cardType === 'credit'  ? 'Crédito'
+          : cardType === 'debit'   ? 'Débito'
+          : cardType === 'prepaid' ? 'Pré-pago'
+          : cardType;
+        cardTypeMap[ct] = (cardTypeMap[ct] || 0) + 1;
+      }
+      if (gender) genderMap[gender] = (genderMap[gender] || 0) + 1;
+      if (ageRaw !== null && ageRaw !== undefined && ageRaw !== '') {
+        let group = String(ageRaw);
+        if (!group.includes('-') && !group.includes('+') && !group.includes('<')) {
+          const n = parseInt(group);
+          if (!isNaN(n)) {
+            group = n < 18 ? '<18' : n < 25 ? '18-24' : n < 35 ? '25-34'
+              : n < 45 ? '35-44' : n < 55 ? '45-54' : '55+';
+          }
+        }
+        ageMap[group] = (ageMap[group] || 0) + 1;
+      }
+      if (bank && gender) {
+        if (!bankGenderMap[bank]) bankGenderMap[bank] = { F: 0, M: 0, O: 0 };
+        const gKey = gender.startsWith('F') ? 'F' : gender.startsWith('M') ? 'M' : 'O';
+        bankGenderMap[bank][gKey] = (bankGenderMap[bank][gKey] || 0) + 1;
+      }
     }
   }
 
@@ -221,7 +277,8 @@ function aggregateCrowderData(movements, catalogShows = []) {
     salesByDate: salesByDateArr,
     totalSold, totalRevenue,
     totalCancelled, totalCancelledRevenue,
-    totalReserved: 0, totalReservedRevenue: 0
+    totalReserved: 0, totalReservedRevenue: 0,
+    paymentStats: { payTypeMap, bankMap, brandMap, installMap, cardTypeMap, genderMap, ageMap, bankGenderMap }
   };
 }
 
@@ -580,6 +637,43 @@ app.get('/', requireAuth, (req, res) => {
   res.send(getDashboardHTML(req.session.user));
 });
 
+// ── API: pagamento-data endpoint ─────────────
+app.get('/api/pagamento-data', requireAuth, (req, res) => {
+  if (!state.data) return res.json({ loading: true });
+  const ps = state.data.paymentStats || {};
+
+  const bankSorted    = Object.entries(ps.bankMap    || {}).sort((a,b) => b[1]-a[1]);
+  const brandSorted   = Object.entries(ps.brandMap   || {}).sort((a,b) => b[1]-a[1]);
+  const installSorted = Object.entries(ps.installMap || {})
+    .sort((a,b) => parseInt(a[0]||0) - parseInt(b[0]||0));
+
+  const total    = state.data.totalSold || 0;
+  const ccCount  = (ps.payTypeMap || {})['Crédito'] || 0;
+  const pixCount = (ps.payTypeMap || {})['PIX']     || 0;
+  const debCount = (ps.payTypeMap || {})['Débito']  || 0;
+
+  res.json({
+    loading:       false,
+    updated_at:    state.lastRefresh ? new Date(state.lastRefresh).toLocaleString('pt-BR') : null,
+    total,
+    ccCount, pixCount, debCount,
+    payTypeMap:    ps.payTypeMap    || {},
+    bankSorted,
+    brandSorted,
+    installSorted,
+    cardTypeMap:   ps.cardTypeMap   || {},
+    genderMap:     ps.genderMap     || {},
+    ageMap:        ps.ageMap        || {},
+    bankGenderMap: ps.bankGenderMap || {},
+    hasData:       bankSorted.length > 0 || brandSorted.length > 0
+  });
+});
+
+// ── Sub-page: Pagamento × Perfil ─────────────
+app.get('/pagamento', requireAuth, (req, res) => {
+  res.send(getPagamentoHTML(req.session.user));
+});
+
 // ── Sub-page: Lista de Eventos ─────────────
 app.get('/eventos', requireAuth, (req, res) => {
   res.send(getEventosHTML(req.session.user));
@@ -823,6 +917,11 @@ ${SHARED_HEADER_CSS}
   <a href="/lotados" class="nav-card" style="border-color:#e6394644">
     <div class="nav-card-icon">🚨</div>
     <div><div class="nav-card-title">Eventos Lotados</div><div class="nav-card-desc">Horários esgotados e novos horários</div></div>
+    <div class="nav-card-arrow">›</div>
+  </a>
+  <a href="/pagamento" class="nav-card" style="border-color:#5b8dee44">
+    <div class="nav-card-icon">💳</div>
+    <div><div class="nav-card-title">Pagamento × Perfil</div><div class="nav-card-desc">Bandeiras, bancos, parcelamento e perfil do comprador</div></div>
     <div class="nav-card-arrow">›</div>
   </a>
 </div>
@@ -2112,6 +2211,279 @@ async function loadData(){
     const ts = json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '—';
     document.getElementById('status-text').textContent = 'Dados ao vivo · '+ts;
     document.getElementById('last-upd').textContent    = 'Atualizado: '+ts;
+  } catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('content').style.display='block';
+    document.getElementById('status-dot').className='status-dot red';
+    document.getElementById('status-text').textContent = 'Erro: '+e.message;
+  }
+}
+document.addEventListener('DOMContentLoaded', loadData);
+<\/script>
+</body></html>`;
+}
+
+// ─────────────────────────────────────────────
+// PAGAMENTO × PERFIL PAGE
+// ─────────────────────────────────────────────
+function getPagamentoHTML(username) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pagamento × Perfil — Rock in Rio 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+${SHARED_CSS_VARS}
+${SHARED_HEADER_CSS}
+  .content{padding:20px 32px 60px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+  .kpi-icon{font-size:22px;margin-bottom:6px}
+  .kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px;font-weight:700}
+  .kpi-val{font-size:22px;font-weight:800;color:var(--blue)}
+  .kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+  .kpi.green .kpi-val{color:var(--green)}.kpi.teal .kpi-val{color:var(--teal)}
+  .kpi.gold .kpi-val{color:var(--gold)}.kpi.red .kpi-val{color:var(--accent)}
+  .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px}
+  .section-title{font-size:13px;font-weight:700;color:var(--blue);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+  .charts-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+  .chart-wrap{position:relative;height:260px}
+  .chart-wrap-sm{position:relative;height:200px}
+  .no-data{text-align:center;padding:48px 20px;color:var(--muted)}
+  .no-data-icon{font-size:48px;margin-bottom:12px}
+  .no-data h3{font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text)}
+  .bank-table{width:100%;border-collapse:collapse;font-size:13px}
+  .bank-table tr{border-bottom:1px solid var(--border)}
+  .bank-table tr:last-child{border-bottom:none}
+  .bank-table tr:hover td{background:var(--surface2)}
+  .bank-table td{padding:9px 10px}
+  .bank-rank{width:32px;font-weight:800;color:var(--muted);text-align:center}
+  .bank-rank.top3{color:var(--gold)}
+  .bank-name{font-weight:600}
+  .bank-bar-td{width:40%;padding:9px 6px}
+  .bank-bar-wrap{background:var(--surface2);border-radius:4px;height:7px;overflow:hidden}
+  .bank-bar-fill{height:100%;border-radius:4px;background:var(--blue)}
+  .bank-count{text-align:right;font-weight:700;min-width:50px;white-space:nowrap}
+  .bank-pct{text-align:right;color:var(--muted);font-size:11px;min-width:42px}
+  .gender-split{display:flex;align-items:center;gap:8px;margin-top:12px}
+  .gender-bar{flex:1;height:32px;border-radius:8px;overflow:hidden;display:flex}
+  .gender-bar-f{background:var(--purple);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;transition:width .6s}
+  .gender-bar-m{background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;transition:width .6s}
+  .gender-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px}
+  @media(max-width:768px){
+    header,.content{padding-left:16px;padding-right:16px}
+    .charts-row,.charts-row-3{grid-template-columns:1fr}
+    .kpis{grid-template-columns:1fr 1fr}
+    #status-bar{padding-left:16px;padding-right:16px}
+  }
+</style>
+</head>
+<body>
+
+<div id="loading" style="position:fixed;inset:0;background:rgba(10,12,16,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:9999;font-size:14px;color:var(--muted)">
+  <div style="width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite"></div>
+  <span>Carregando dados de pagamento...</span>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</div>
+
+<header>
+  <div class="header-left">
+    <div class="logo-badge">Rock in Rio 2026</div>
+    <div>
+      <h1>Pagamento × Perfil</h1>
+      <p>Métodos de pagamento, bancos e perfil do comprador · Logado como <strong>${username}</strong></p>
+    </div>
+  </div>
+  <div class="header-right">
+    <a href="/" class="btn btn-back">← Painel</a>
+    <form method="POST" action="/logout" style="margin:0">
+      <button class="btn btn-secondary" type="submit">Sair</button>
+    </form>
+  </div>
+</header>
+
+<div id="status-bar">
+  <span class="status-dot" id="status-dot"></span>
+  <span id="status-text">Conectando...</span>
+</div>
+
+<div class="content" id="content" style="display:none">
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-icon">🎟️</div><div class="kpi-label">Total Ingressos</div><div class="kpi-val" id="k-total">—</div></div>
+    <div class="kpi green"><div class="kpi-icon">💳</div><div class="kpi-label">Cartão de Crédito</div><div class="kpi-val" id="k-cc">—</div><div class="kpi-sub" id="k-cc-sub"></div></div>
+    <div class="kpi teal"><div class="kpi-icon">🏦</div><div class="kpi-label">PIX</div><div class="kpi-val" id="k-pix">—</div><div class="kpi-sub" id="k-pix-sub"></div></div>
+    <div class="kpi"><div class="kpi-icon">🏆</div><div class="kpi-label">Banco #1</div><div class="kpi-val" id="k-top-bank" style="font-size:16px">—</div></div>
+    <div class="kpi gold"><div class="kpi-icon">⭐</div><div class="kpi-label">Bandeira #1</div><div class="kpi-val" id="k-top-brand" style="font-size:15px">—</div></div>
+  </div>
+
+  <!-- Bancos + Bandeiras -->
+  <div class="charts-row">
+    <div class="section">
+      <div class="section-title">🏦 Top Bancos</div>
+      <div id="bank-list"></div>
+    </div>
+    <div class="section">
+      <div class="section-title">⭐ Bandeiras de Cartão</div>
+      <div class="chart-wrap"><canvas id="chartBrand"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Parcelas + Tipo Cartão -->
+  <div class="charts-row">
+    <div class="section">
+      <div class="section-title">📊 Parcelamento</div>
+      <div class="chart-wrap"><canvas id="chartInstall"></canvas></div>
+    </div>
+    <div class="section">
+      <div class="section-title">💳 Tipo de Cartão</div>
+      <div class="chart-wrap-sm" style="margin-top:20px"><canvas id="chartCardType"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Gênero -->
+  <div class="section" id="section-gender" style="display:none">
+    <div class="section-title">👥 Perfil — Gênero</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Distribuição por gênero do comprador</p>
+    <div class="gender-split">
+      <span style="font-size:13px;color:var(--purple);font-weight:700">♀ Fem</span>
+      <div class="gender-bar">
+        <div class="gender-bar-f" id="gender-bar-f">—</div>
+        <div class="gender-bar-m" id="gender-bar-m">—</div>
+      </div>
+      <span style="font-size:13px;color:var(--blue);font-weight:700">Masc ♂</span>
+    </div>
+    <div class="gender-labels"><span id="gender-lbl-f"></span><span id="gender-lbl-m"></span></div>
+  </div>
+
+  <!-- Idade -->
+  <div class="section" id="section-age" style="display:none">
+    <div class="section-title">📅 Perfil — Faixa Etária</div>
+    <div class="chart-wrap"><canvas id="chartAge"></canvas></div>
+  </div>
+
+  <!-- No data message -->
+  <div id="no-data" style="display:none">
+    <div class="no-data">
+      <div class="no-data-icon">📋</div>
+      <h3>Dados de pagamento não disponíveis</h3>
+      <p style="max-width:480px;margin:0 auto;font-size:13px">A API Crowder ainda não retornou dados detalhados de pagamento e perfil para esta chave. Esses dados aparecem conforme as vendas são processadas.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const BLUE_PALETTE = ['#5b8dee','#4a7cdc','#3d6abf','#2ec27e','#1abc9c','#9b59b6','#e63946','#f4a261','#ffd700','#e8871a','#FF6B9D'];
+const BRAND_COLORS  = { MASTERCARD:'#eb5b25', VISA:'#1a1f71', ELO:'#ffd700', 'AMERICAN EXPRESS':'#016fcf', DISCOVER:'#f76f20', HIPERCARD:'#b81c22' };
+
+function fmt(n){ return n>=1e6 ? (n/1e6).toFixed(1)+'M' : n>=1e3 ? (n/1e3).toFixed(1)+'K' : String(n||0); }
+
+function mkChart(id, type, labels, data, colors, opts={}){
+  const ctx = document.getElementById(id);
+  if(!ctx) return;
+  return new Chart(ctx,{
+    type, data:{ labels, datasets:[{ data, backgroundColor: colors||BLUE_PALETTE, borderColor: type==='bar'?'transparent':'#131720', borderWidth:2 }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display: type!=='bar', position:'right', labels:{ color:'#7a8499', font:{size:11}, padding:12 }},
+        tooltip:{ callbacks:{ label: ctx=>{ const v=ctx.parsed.y??ctx.parsed; return ' '+Number(v).toLocaleString('pt-BR'); } }}},
+      scales: type==='bar' ? { x:{ ticks:{ color:'#7a8499', font:{size:11}}, grid:{color:'#252d3d'} }, y:{ ticks:{ color:'#7a8499', font:{size:11}}, grid:{color:'#252d3d'}, beginAtZero:true } } : {},
+      ...opts
+    }
+  });
+}
+
+async function loadData(){
+  try {
+    const res  = await fetch('/api/pagamento-data');
+    const json = await res.json();
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('content').style.display='block';
+
+    const ts = json.updated_at || '—';
+    document.getElementById('status-dot').className='status-dot green';
+    document.getElementById('status-text').textContent = 'Dados ao vivo · '+ts;
+
+    if(!json.hasData){
+      document.getElementById('no-data').style.display='block';
+      // Update KPIs with what we have
+      document.getElementById('k-total').textContent = fmt(json.total||0);
+      return;
+    }
+
+    // ── KPIs ──
+    const total = json.total||0;
+    document.getElementById('k-total').textContent   = fmt(total);
+    document.getElementById('k-cc').textContent      = fmt(json.ccCount||0);
+    document.getElementById('k-cc-sub').textContent  = total ? ((json.ccCount||0)*100/total).toFixed(1)+'% do total' : '';
+    document.getElementById('k-pix').textContent     = fmt(json.pixCount||0);
+    document.getElementById('k-pix-sub').textContent = total ? ((json.pixCount||0)*100/total).toFixed(1)+'% do total' : '';
+    if(json.bankSorted&&json.bankSorted[0]) document.getElementById('k-top-bank').textContent  = json.bankSorted[0][0];
+    if(json.brandSorted&&json.brandSorted[0]) document.getElementById('k-top-brand').textContent = json.brandSorted[0][0];
+
+    // ── Top Bancos ──
+    const banks   = json.bankSorted||[];
+    const bankMax = banks[0]?.[1]||1;
+    const bankHtml = banks.slice(0,10).map((b,i)=>{
+      const pct = ((b[1]/total)*100).toFixed(1);
+      return \`<tr>
+        <td class="bank-rank \${i<3?'top3':''}">\${i+1}</td>
+        <td class="bank-name">\${b[0]}</td>
+        <td class="bank-bar-td"><div class="bank-bar-wrap"><div class="bank-bar-fill" style="width:\${Math.round(b[1]/bankMax*100)}%"></div></div></td>
+        <td class="bank-count">\${b[1].toLocaleString('pt-BR')}</td>
+        <td class="bank-pct">\${pct}%</td>
+      </tr>\`;
+    }).join('');
+    document.getElementById('bank-list').innerHTML = '<table class="bank-table">'+bankHtml+'</table>';
+
+    // ── Bandeiras ──
+    const brands = json.brandSorted||[];
+    const brandColors = brands.map(b=>BRAND_COLORS[b[0]]||BLUE_PALETTE[brands.indexOf(b)%BLUE_PALETTE.length]);
+    mkChart('chartBrand','doughnut', brands.map(b=>b[0]), brands.map(b=>b[1]), brandColors);
+
+    // ── Parcelas ──
+    const inst = json.installSorted||[];
+    mkChart('chartInstall','bar', inst.map(i=>i[0]), inst.map(i=>i[1]), BLUE_PALETTE);
+
+    // ── Tipo Cartão ──
+    const ct = Object.entries(json.cardTypeMap||{}).sort((a,b)=>b[1]-a[1]);
+    if(ct.length>0){
+      mkChart('chartCardType','doughnut', ct.map(c=>c[0]), ct.map(c=>c[1]), ['#5b8dee','#2ec27e','#9b59b6','#e63946']);
+    }
+
+    // ── Gênero ──
+    const gm = json.genderMap||{};
+    const fCount = gm['FEMALE']||gm['F']||0;
+    const mCount = gm['MALE']||gm['M']||0;
+    if(fCount+mCount>0){
+      document.getElementById('section-gender').style.display='block';
+      const tot = fCount+mCount;
+      const fp = Math.round(fCount/tot*100);
+      const mp = 100-fp;
+      document.getElementById('gender-bar-f').style.width = fp+'%';
+      document.getElementById('gender-bar-f').textContent = fp+'%';
+      document.getElementById('gender-bar-m').style.width = mp+'%';
+      document.getElementById('gender-bar-m').textContent = mp+'%';
+      document.getElementById('gender-lbl-f').textContent = 'Feminino: '+fCount.toLocaleString('pt-BR')+' ('+fp+'%)';
+      document.getElementById('gender-lbl-m').textContent = 'Masculino: '+mCount.toLocaleString('pt-BR')+' ('+mp+'%)';
+    }
+
+    // ── Faixa Etária ──
+    const ageOrder = ['<18','18-24','25-34','35-44','45-54','55+'];
+    const am = json.ageMap||{};
+    const ageEntries = Object.entries(am).sort((a,b)=>{
+      const ai = ageOrder.indexOf(a[0]); const bi = ageOrder.indexOf(b[0]);
+      return (ai<0?99:ai)-(bi<0?99:bi);
+    });
+    if(ageEntries.length>0){
+      document.getElementById('section-age').style.display='block';
+      mkChart('chartAge','bar', ageEntries.map(e=>e[0]), ageEntries.map(e=>e[1]), BLUE_PALETTE);
+    }
+
   } catch(e){
     document.getElementById('loading').style.display='none';
     document.getElementById('content').style.display='block';
