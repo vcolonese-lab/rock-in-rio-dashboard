@@ -960,7 +960,6 @@ ${SHARED_HEADER_CSS}
       </svg>
       Atualizar
     </button>
-    <button class="btn btn-secondary" onclick="openHistorico()" id="hist-btn" style="border-color:#ffd700;color:#ffd700">📊 Histórico</button>
     <button class="btn" onclick="exportComparativo()" id="export-comp-btn" style="background:#2ec27e;color:#fff">↓ Comparativo</button>
     <button class="btn btn-primary" onclick="exportXLS()" id="export-btn">↓ XLS</button>
     <form method="POST" action="/logout" style="margin:0">
