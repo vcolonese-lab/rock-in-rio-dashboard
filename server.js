@@ -488,8 +488,8 @@ app.get('/health/salesbydate', (req, res) => {
   res.json({ ok: true, salesByDate: state.data.salesByDate || [] });
 });
 
-// Diagnóstico temporário: estrutura de campos de pagamento (sem valores PII)
-app.get('/health/payment-debug', requireAuth, (req, res) => {
+// Diagnóstico temporário: estrutura de campos de pagamento (sem valores PII) — sem auth para debug
+app.get('/health/payment-debug', (req, res) => {
   res.json(state._debugPaymentKeys || { error: 'Sem dados ainda — aguarde refresh' });
 });
 
