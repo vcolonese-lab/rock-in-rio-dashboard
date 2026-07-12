@@ -145,7 +145,7 @@ function aggregateCrowderData(movements, catalogShows = []) {
         'american express':'AMEX', americanexpress:'AMEX', elo:'ELO', hipercard:'HIPERCARD',
         discover:'DISCOVER', hiper:'HIPER' };
       const brand = rawBrand ? (BNORM[rawBrand.toLowerCase()] || rawBrand.toUpperCase()) : '';
-      const instRaw = pay.installments ?? pay.parcelas ?? cardObj.installments ?? null;
+      const instRaw = pay.instalments ?? pay.installments ?? pay.parcelas ?? cardObj.installments ?? null;
       const install = instRaw != null ? String(instRaw) + '×' : '';
       const cardType = pay.cardType || pay.card_type || cardObj.type || cardObj.cardType || '';
       const gender  = String(buyerObj.gender || m.gender || '').toUpperCase();
@@ -402,22 +402,6 @@ async function refreshData() {
 
     state.data        = aggregateCrowderData(allMovements, catalogShows);
     state.lastRefresh = new Date();
-    // DEBUG: captura estrutura de 1 movimento de crédito (só keys, sem valores PII)
-    const sampleCC = allMovements.find(m => {
-      const pay = m.payment || m.purchase?.payment || {};
-      return (pay.type||'').toUpperCase().includes('CREDIT') || (pay.type||'').toUpperCase().includes('CRÉDITO');
-    });
-    if (sampleCC) {
-      const pay = sampleCC.payment || sampleCC.purchase?.payment || {};
-      const card = sampleCC.card || pay.card || {};
-      state._debugPaymentKeys = {
-        topLevelKeys: Object.keys(sampleCC).filter(k => !['buyer','customer','holder','name','email','document','cpf'].includes(k)),
-        paymentKeys:  Object.keys(pay),
-        cardKeys:     Object.keys(card),
-        paymentSample: { type: pay.type, installments: pay.installments, parcelas: pay.parcelas, numberOfInstallments: pay.numberOfInstallments, installmentCount: pay.installmentCount, amount: pay.amount ? '***' : undefined },
-        cardSample:   { installments: card.installments, brand: card.brand, type: card.type }
-      };
-    }
     console.log(`[${new Date().toISOString()}] Pronto. Total vendido: ${state.data.totalSold}`);
 
   } catch (err) {
@@ -488,10 +472,6 @@ app.get('/health/salesbydate', (req, res) => {
   res.json({ ok: true, salesByDate: state.data.salesByDate || [] });
 });
 
-// Diagnóstico temporário: estrutura de campos de pagamento (sem valores PII) — sem auth para debug
-app.get('/health/payment-debug', (req, res) => {
-  res.json(state._debugPaymentKeys || { error: 'Sem dados ainda — aguarde refresh' });
-});
 
 // ── Debug: check current Crowder API key status (auth required).
 //    PII fields are stripped from any sample movement returned.
