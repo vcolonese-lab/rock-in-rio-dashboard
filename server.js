@@ -402,6 +402,22 @@ async function refreshData() {
 
     state.data        = aggregateCrowderData(allMovements, catalogShows);
     state.lastRefresh = new Date();
+    // DEBUG: captura estrutura de 1 movimento de crédito (só keys, sem valores PII)
+    const sampleCC = allMovements.find(m => {
+      const pay = m.payment || m.purchase?.payment || {};
+      return (pay.type||'').toUpperCase().includes('CREDIT') || (pay.type||'').toUpperCase().includes('CRÉDITO');
+    });
+    if (sampleCC) {
+      const pay = sampleCC.payment || sampleCC.purchase?.payment || {};
+      const card = sampleCC.card || pay.card || {};
+      state._debugPaymentKeys = {
+        topLevelKeys: Object.keys(sampleCC).filter(k => !['buyer','customer','holder','name','email','document','cpf'].includes(k)),
+        paymentKeys:  Object.keys(pay),
+        cardKeys:     Object.keys(card),
+        paymentSample: { type: pay.type, installments: pay.installments, parcelas: pay.parcelas, numberOfInstallments: pay.numberOfInstallments, installmentCount: pay.installmentCount, amount: pay.amount ? '***' : undefined },
+        cardSample:   { installments: card.installments, brand: card.brand, type: card.type }
+      };
+    }
     console.log(`[${new Date().toISOString()}] Pronto. Total vendido: ${state.data.totalSold}`);
 
   } catch (err) {
@@ -470,6 +486,11 @@ app.get('/health', (req, res) => {
 app.get('/health/salesbydate', (req, res) => {
   if (!state.data) return res.json({ ok: false, message: 'Sem dados ainda' });
   res.json({ ok: true, salesByDate: state.data.salesByDate || [] });
+});
+
+// Diagnóstico temporário: estrutura de campos de pagamento (sem valores PII)
+app.get('/health/payment-debug', requireAuth, (req, res) => {
+  res.json(state._debugPaymentKeys || { error: 'Sem dados ainda — aguarde refresh' });
 });
 
 // ── Debug: check current Crowder API key status (auth required).
