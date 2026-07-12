@@ -462,8 +462,7 @@ app.get('/health', (req, res) => {
     error: state.error,
     totalSold: state.data?.totalSold ?? null,
     totalRevenue: state.data?.totalRevenue ?? null,
-    showCount: state.data?.rawShows?.length ?? null,
-    installKeys: Object.keys(state.data?.paymentStats?.installMap || {})
+    showCount: state.data?.rawShows?.length ?? null
   });
 });
 
