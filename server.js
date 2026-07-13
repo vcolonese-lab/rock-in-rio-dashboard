@@ -453,6 +453,56 @@ app.get('/api/debug/shows', requireAuth, async (req, res) => {
   }
 });
 
+// ── Temp: debug descontos/gratuidade/club (public, remove after) ───────────
+app.get('/health/discount-debug', (req, res) => {
+  const mvs = state.data?.rawMovements || [];
+  const tickets = mvs.filter(m => m.concept === 'TICKET');
+
+  const count = (map, key) => { if(key) map[String(key)] = (map[String(key)]||0)+1; };
+
+  const payTypeMap={}, methodNameMap={}, voucherMap={}, descMap={}, conceptMap={};
+  const rateKeys = new Set(), itemKeys = new Set(), purchaseKeys = new Set();
+  const productNames={};
+  let sampleRate=null, sampleItem=null, samplePurchase=null, sampleVoucher=null;
+
+  for (const m of mvs.slice(0,5000)) {
+    count(conceptMap, m.concept);
+    const pay = m.payment || m.purchase?.payment || {};
+    count(payTypeMap, pay.type || pay.paymentType || pay.method);
+    count(methodNameMap, pay.method_name);
+    count(voucherMap, pay.voucher);
+    count(descMap, pay.description);
+    if (m.rate)     { Object.keys(m.rate).forEach(k=>rateKeys.add(k)); if(!sampleRate) sampleRate=m.rate; }
+    if (m.item)     { Object.keys(m.item).forEach(k=>itemKeys.add(k)); if(!sampleItem) sampleItem=m.item; }
+    if (m.purchase) { Object.keys(m.purchase).forEach(k=>purchaseKeys.add(k)); if(!samplePurchase) samplePurchase=m.purchase; }
+    if (pay.voucher && !sampleVoucher) sampleVoucher = pay.voucher;
+    const pname = m.product?.name || m.product?.description || '';
+    if (pname) count(productNames, pname);
+  }
+
+  // Also scan concept values beyond TICKET
+  const allConcepts={};
+  for (const m of mvs) count(allConcepts, m.concept);
+
+  res.json({
+    totalMovements: mvs.length,
+    totalTicketMovements: tickets.length,
+    allConcepts,
+    payTypeMap,
+    methodNameMap,
+    voucherMap: Object.fromEntries(Object.entries(voucherMap).slice(0,20)),
+    descMap,
+    rateKeys: [...rateKeys],
+    sampleRate,
+    itemKeys: [...itemKeys],
+    sampleItem,
+    purchaseKeys: [...purchaseKeys],
+    samplePurchaseExcludingPayment: samplePurchase ? (({payment,...rest})=>rest)(samplePurchase) : null,
+    sampleVoucher,
+    topProducts: Object.entries(productNames).sort((a,b)=>b[1]-a[1]).slice(0,30)
+  });
+});
+
 // ── Public health check (no auth) ───────────
 app.get('/health', (req, res) => {
   res.json({
