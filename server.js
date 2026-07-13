@@ -456,51 +456,57 @@ app.get('/api/debug/shows', requireAuth, async (req, res) => {
 
 // ── Temp: debug descontos/gratuidade/club (public, remove after) ───────────
 app.get('/health/discount-debug', (req, res) => {
-  const mvs = state.rawMovements || [];
-  const tickets = mvs.filter(m => m.concept === 'TICKET');
+  const allMvs = state.rawMovements || [];
+  // Filter only Rock in Rio ticket movements
+  const mvs = allMvs.filter(m =>
+    m.concept === 'TICKET' &&
+    m.event && m.event.name && m.event.name.includes('Rock in Rio')
+  );
 
-  const count = (map, key) => { if(key) map[String(key)] = (map[String(key)]||0)+1; };
+  const count = (map, key) => { if(key != null && key !== '') map[String(key)] = (map[String(key)]||0)+1; };
 
-  const payTypeMap={}, methodNameMap={}, voucherMap={}, descMap={}, conceptMap={};
-  const rateKeys = new Set(), itemKeys = new Set(), purchaseKeys = new Set();
-  const productNames={};
-  let sampleRate=null, sampleItem=null, samplePurchase=null, sampleVoucher=null;
+  const payTypeMap={}, methodNameMap={}, voucherMap={}, descMap={}, channelMap={};
+  const productNames={}, showNames={}, eventNames={};
+  let sampleFree=null, sampleGift=null, sampleCredit=null;
 
-  for (const m of mvs.slice(0,5000)) {
-    count(conceptMap, m.concept);
+  for (const m of mvs) {
     const pay = m.payment || m.purchase?.payment || {};
-    count(payTypeMap, pay.type || pay.paymentType || pay.method);
+    const purchInfo = m.purchase?.buyerInfo || {};
+    const channel = m.purchase?.channel || {};
+    const rawType = pay.type || pay.paymentType || pay.method || '';
+
+    count(payTypeMap, rawType);
     count(methodNameMap, pay.method_name);
     count(voucherMap, pay.voucher);
     count(descMap, pay.description);
-    if (m.rate)     { Object.keys(m.rate).forEach(k=>rateKeys.add(k)); if(!sampleRate) sampleRate=m.rate; }
-    if (m.item)     { Object.keys(m.item).forEach(k=>itemKeys.add(k)); if(!sampleItem) sampleItem=m.item; }
-    if (m.purchase) { Object.keys(m.purchase).forEach(k=>purchaseKeys.add(k)); if(!samplePurchase) samplePurchase=m.purchase; }
-    if (pay.voucher && !sampleVoucher) sampleVoucher = pay.voucher;
-    const pname = m.product?.name || m.product?.description || '';
+    count(channelMap, channel.name);
+    const pname = m.product?.name || '';
+    const sname = m.tickets?.[0]?.show?.name || '';
+    const ename = m.event?.name || '';
     if (pname) count(productNames, pname);
+    if (sname) count(showNames, sname);
+    if (ename) count(eventNames, ename);
+
+    // Capture samples per type
+    if (rawType === 'FREE'  && !sampleFree)   sampleFree   = { payType:rawType, voucher:pay.voucher, description:pay.description, method_name:pay.method_name, productName:pname, showName:sname, amount:m.amount, ticketCount:m.ticketCount };
+    if (rawType === 'GIFT'  && !sampleGift)   sampleGift   = { payType:rawType, voucher:pay.voucher, description:pay.description, method_name:pay.method_name, productName:pname, showName:sname, amount:m.amount, ticketCount:m.ticketCount };
+    if (rawType === 'CREDIT_CARD' && !sampleCredit) sampleCredit = { payType:rawType, instalments:pay.instalments, brand:pay.card?.brand, productName:pname, showName:sname, amount:m.amount };
   }
 
-  // Also scan concept values beyond TICKET
-  const allConcepts={};
-  for (const m of mvs) count(allConcepts, m.concept);
-
   res.json({
-    totalMovements: mvs.length,
-    totalTicketMovements: tickets.length,
-    allConcepts,
+    totalAllMovements: allMvs.length,
+    totalRirTickets: mvs.length,
     payTypeMap,
     methodNameMap,
     voucherMap: Object.fromEntries(Object.entries(voucherMap).slice(0,20)),
     descMap,
-    rateKeys: [...rateKeys],
-    sampleRate,
-    itemKeys: [...itemKeys],
-    sampleItem,
-    purchaseKeys: [...purchaseKeys],
-    samplePurchaseExcludingPayment: samplePurchase ? (({payment,...rest})=>rest)(samplePurchase) : null,
-    sampleVoucher,
-    topProducts: Object.entries(productNames).sort((a,b)=>b[1]-a[1]).slice(0,30)
+    channelMap,
+    topProducts: Object.entries(productNames).sort((a,b)=>b[1]-a[1]).slice(0,30),
+    topShows: Object.entries(showNames).sort((a,b)=>b[1]-a[1]).slice(0,20),
+    topEvents: Object.entries(eventNames).sort((a,b)=>b[1]-a[1]).slice(0,10),
+    sampleFree,
+    sampleGift,
+    sampleCredit
   });
 });
 
