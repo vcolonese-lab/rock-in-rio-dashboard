@@ -400,6 +400,7 @@ async function refreshData() {
       }
     }
 
+    state.rawMovements = allMovements;
     state.data        = aggregateCrowderData(allMovements, catalogShows);
     state.lastRefresh = new Date();
     console.log(`[${new Date().toISOString()}] Pronto. Total vendido: ${state.data.totalSold}`);
@@ -455,7 +456,7 @@ app.get('/api/debug/shows', requireAuth, async (req, res) => {
 
 // ── Temp: debug descontos/gratuidade/club (public, remove after) ───────────
 app.get('/health/discount-debug', (req, res) => {
-  const mvs = state.data?.rawMovements || [];
+  const mvs = state.rawMovements || [];
   const tickets = mvs.filter(m => m.concept === 'TICKET');
 
   const count = (map, key) => { if(key) map[String(key)] = (map[String(key)]||0)+1; };
