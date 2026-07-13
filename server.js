@@ -79,6 +79,7 @@ function aggregateCrowderData(movements, catalogShows = []) {
   // ── Payment / demographic aggregation maps ──
   const payTypeMap = {}, bankMap = {}, brandMap = {}, installMap = {}, cardTypeMap = {};
   const genderMap = {}, ageMap = {}, bankGenderMap = {};
+  const freeGiftList = [];  // capture FREE/GIFT transactions in full
 
   for (const m of tickets) {
     const show   = m.tickets && m.tickets[0] ? m.tickets[0].show   : null;
@@ -158,6 +159,39 @@ function aggregateCrowderData(movements, catalogShows = []) {
           : payType === 'BOLETO'     ? 'Boleto'
           : payType;
         payTypeMap[pt] = (payTypeMap[pt] || 0) + 1;
+
+        // Capture full FREE/GIFT details for export
+        if (payType === 'FREE' || payType === 'GIFT') {
+          const buyer = buyerObj;
+          const purch = m.purchase || {};
+          const channel = purch.channel || {};
+          const geo = purch.geoInfo || {};
+          freeGiftList.push({
+            tipo:          payType,
+            data_compra:   (m.date || '').substring(0, 10),
+            hora_compra:   (m.date || '').substring(11, 16),
+            id_compra:     purch.id || m.id || '',
+            produto:       m.product?.name || '',
+            show:          (show ? show.name : ''),
+            data_show:     (show ? (show.startDate || '').substring(0, 10) : ''),
+            evento:        m.event?.name || '',
+            qtd_ingressos: m.ticketCount || 0,
+            valor_face:    m.amount || 0,
+            voucher:       pay.voucher || '',
+            descricao:     pay.description || '',
+            canal:         channel.name || '',
+            canal_tipo:    channel.type || '',
+            nome:          `${buyer.firstName || purch.user?.firstName || ''} ${buyer.lastName || purch.user?.lastName || ''}`.trim(),
+            email:         buyer.email || purch.user?.email || '',
+            genero:        buyer.gender || '',
+            idade:         buyer.age || '',
+            cidade:        geo.city || '',
+            estado:        geo.region || '',
+            pais:          geo.country || '',
+            device:        purch.deviceInfo?.deviceType || '',
+            os:            purch.deviceInfo?.os || ''
+          });
+        }
       }
       if (bank)    bankMap[bank]   = (bankMap[bank]   || 0) + 1;
       if (brand)   brandMap[brand] = (brandMap[brand] || 0) + 1;
@@ -282,7 +316,8 @@ function aggregateCrowderData(movements, catalogShows = []) {
     totalSold, totalRevenue,
     totalCancelled, totalCancelledRevenue,
     totalReserved: 0, totalReservedRevenue: 0,
-    paymentStats: { payTypeMap, bankMap, brandMap, installMap, cardTypeMap, genderMap, ageMap, bankGenderMap }
+    paymentStats: { payTypeMap, bankMap, brandMap, installMap, cardTypeMap, genderMap, ageMap, bankGenderMap },
+    freeGiftList
   };
 }
 
@@ -640,6 +675,12 @@ app.post('/admin/update-api-key', (req, res) => {
 // ── Dashboard (main page) ────────────────────
 app.get('/', requireAuth, (req, res) => {
   res.send(getDashboardHTML(req.session.user));
+});
+
+// ── API: free/gift gratuidades export ────────
+app.get('/api/gratuidades', requireAuth, (req, res) => {
+  if (!state.data) return res.json({ loading: true });
+  res.json({ list: state.data.freeGiftList || [], updatedAt: state.lastRefresh });
 });
 
 // ── API: pagamento-data endpoint ─────────────
