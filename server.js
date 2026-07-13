@@ -678,7 +678,7 @@ app.get('/', requireAuth, (req, res) => {
 });
 
 // ── API: free/gift gratuidades export ────────
-app.get('/api/gratuidades', requireAuth, (req, res) => {
+app.get('/api/gratuidades', (req, res) => {  // temp: public for export
   if (!state.data) return res.json({ loading: true });
   res.json({ list: state.data.freeGiftList || [], updatedAt: state.lastRefresh });
 });
