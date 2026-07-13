@@ -136,7 +136,7 @@ function aggregateCrowderData(movements, catalogShows = []) {
     if ((m.ticketCount || 0) > 0) {
       const pay     = m.payment || m.purchase?.payment || {};
       const cardObj = m.card    || pay.card            || {};
-      const buyerObj = m.buyer  || m.customer          || {};
+      const buyerObj = m.purchase?.buyerInfo || m.buyer || m.customer || {};
 
       const payType = pay.type || pay.method || pay.paymentMethod || pay.paymentType || '';
       const bank    = pay.bank || pay.bankName || cardObj.bank || cardObj.bankName || '';
@@ -400,7 +400,6 @@ async function refreshData() {
       }
     }
 
-    state.rawMovements = allMovements;
     state.data        = aggregateCrowderData(allMovements, catalogShows);
     state.lastRefresh = new Date();
     console.log(`[${new Date().toISOString()}] Pronto. Total vendido: ${state.data.totalSold}`);
@@ -452,62 +451,6 @@ app.get('/api/debug/shows', requireAuth, async (req, res) => {
   } catch(e) {
     res.json({ error: e.message });
   }
-});
-
-// ── Temp: debug descontos/gratuidade/club (public, remove after) ───────────
-app.get('/health/discount-debug', (req, res) => {
-  const allMvs = state.rawMovements || [];
-  // Filter only Rock in Rio ticket movements
-  const mvs = allMvs.filter(m =>
-    m.concept === 'TICKET' &&
-    m.event && m.event.name && m.event.name.includes('Rock in Rio')
-  );
-
-  const count = (map, key) => { if(key != null && key !== '') map[String(key)] = (map[String(key)]||0)+1; };
-
-  const payTypeMap={}, methodNameMap={}, voucherMap={}, descMap={}, channelMap={};
-  const productNames={}, showNames={}, eventNames={};
-  let sampleFree=null, sampleGift=null, sampleCredit=null;
-
-  for (const m of mvs) {
-    const pay = m.payment || m.purchase?.payment || {};
-    const purchInfo = m.purchase?.buyerInfo || {};
-    const channel = m.purchase?.channel || {};
-    const rawType = pay.type || pay.paymentType || pay.method || '';
-
-    count(payTypeMap, rawType);
-    count(methodNameMap, pay.method_name);
-    count(voucherMap, pay.voucher);
-    count(descMap, pay.description);
-    count(channelMap, channel.name);
-    const pname = m.product?.name || '';
-    const sname = m.tickets?.[0]?.show?.name || '';
-    const ename = m.event?.name || '';
-    if (pname) count(productNames, pname);
-    if (sname) count(showNames, sname);
-    if (ename) count(eventNames, ename);
-
-    // Capture samples per type
-    if (rawType === 'FREE'  && !sampleFree)   sampleFree   = { payType:rawType, voucher:pay.voucher, description:pay.description, method_name:pay.method_name, productName:pname, showName:sname, amount:m.amount, ticketCount:m.ticketCount };
-    if (rawType === 'GIFT'  && !sampleGift)   sampleGift   = { payType:rawType, voucher:pay.voucher, description:pay.description, method_name:pay.method_name, productName:pname, showName:sname, amount:m.amount, ticketCount:m.ticketCount };
-    if (rawType === 'CREDIT_CARD' && !sampleCredit) sampleCredit = { payType:rawType, instalments:pay.instalments, brand:pay.card?.brand, productName:pname, showName:sname, amount:m.amount };
-  }
-
-  res.json({
-    totalAllMovements: allMvs.length,
-    totalRirTickets: mvs.length,
-    payTypeMap,
-    methodNameMap,
-    voucherMap: Object.fromEntries(Object.entries(voucherMap).slice(0,20)),
-    descMap,
-    channelMap,
-    topProducts: Object.entries(productNames).sort((a,b)=>b[1]-a[1]).slice(0,30),
-    topShows: Object.entries(showNames).sort((a,b)=>b[1]-a[1]).slice(0,20),
-    topEvents: Object.entries(eventNames).sort((a,b)=>b[1]-a[1]).slice(0,10),
-    sampleFree,
-    sampleGift,
-    sampleCredit
-  });
 });
 
 // ── Public health check (no auth) ───────────
