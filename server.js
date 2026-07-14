@@ -140,7 +140,29 @@ function aggregateCrowderData(movements, catalogShows = []) {
       salesByDate[saleDate].revenue += m.amount      || 0;
     }
 
-    // -- Payment / demographic aggregation --
+    // -- payTypeMap: conta ingressos por forma de pagamento (positivos E reembolsos) --
+    // Roda para todos os registros (ticketCount != 0) para que reembolsos tambem subtraiam
+    if ((m.ticketCount || 0) !== 0) {
+      const pay_ = m.payment || m.purchase?.payment || {};
+      const rateCat_ = m.rate?.category?.name || '';
+      const payType_ = pay_.type || pay_.method || pay_.paymentMethod || pay_.paymentType || '';
+      let pt_ = '';
+      if (rateCat_ === 'Cortesia Club') {
+        pt_ = 'Cortesia Club';
+      } else if (rateCat_ === 'Cortesia') {
+        pt_ = 'Cortesia';
+      } else if (payType_ && payType_ !== 'FREE' && payType_ !== 'GIFT') {
+        pt_ = payType_ === 'CREDIT_CARD' ? 'Cr&#xE9;dito'
+            : payType_ === 'PIX'         ? 'PIX'
+            : payType_ === 'DEBIT_CARD'  ? 'D&#xE9;bito'
+            : payType_ === 'BOLETO'      ? 'Boleto'
+            : payType_;
+      }
+      // Soma ticketCount (positivo para vendas, negativo para reembolsos)
+      if (pt_) payTypeMap[pt_] = (payTypeMap[pt_] || 0) + (m.ticketCount || 0);
+    }
+
+    // -- Demograficos e detalhes (apenas movimentos positivos) --
     if ((m.ticketCount || 0) > 0) {
       const pay     = m.payment || m.purchase?.payment || {};
       const cardObj = m.card    || pay.card            || {};
@@ -159,22 +181,11 @@ function aggregateCrowderData(movements, catalogShows = []) {
       const gender  = String(buyerObj.gender || m.gender || '').toUpperCase();
       const ageRaw  = buyerObj.age ?? buyerObj.ageGroup ?? m.age ?? m.ageGroup ?? null;
 
-      // -- Determina label de pagamento --
-      // Cortesia Club / Cortesia sobrep&#xF5;em FREE/GIFT
+      // rateCat e pt ainda necessarios para freeGiftList e brandMap abaixo
       const rateCat = m.rate?.category?.name || '';
-      let pt = '';
-      if (rateCat === 'Cortesia Club') {
-        pt = 'Cortesia Club';
-      } else if (rateCat === 'Cortesia') {
-        pt = 'Cortesia';
-      } else if (payType && payType !== 'FREE' && payType !== 'GIFT') {
-        pt = payType === 'CREDIT_CARD'  ? 'Cr&#xE9;dito'
-          : payType === 'PIX'           ? 'PIX'
-          : payType === 'DEBIT_CARD'    ? 'D&#xE9;bito'
-          : payType === 'BOLETO'        ? 'Boleto'
-          : payType;
-      }
-      if (pt) payTypeMap[pt] = (payTypeMap[pt] || 0) + 1;
+      const pt = (rateCat === 'Cortesia Club') ? 'Cortesia Club'
+               : (rateCat === 'Cortesia')      ? 'Cortesia'
+               : '';
 
       // Capture Cortesia Club / Cortesia details for export
       if (rateCat === 'Cortesia Club' || rateCat === 'Cortesia' || payType === 'FREE' || payType === 'GIFT') {
