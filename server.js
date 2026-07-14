@@ -6,9 +6,9 @@ const cron    = require('node-cron');
 const crypto  = require('crypto');
 const path    = require('path');
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // CONFIG  (set these as Railway env variables)
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 const PORT           = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
@@ -24,30 +24,30 @@ const USERS = Object.fromEntries(
     .filter(Boolean)
 );
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // CROWDER API CONFIG
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 const CROWDER_BASE    = 'https://data.getcrowder.com';
 // NOTA (2026-06-26): a Ticketmaster trocou a API e forneceu uma chave nova,
-// mas essa chave nova n√£o est√° trazendo o hist√≥rico anterior √† sua cria√ß√£o
-// (s√≥ mostra vendas recentes, a partir de hoje). A chave antiga continua
-// ativa e tem todo o hist√≥rico. Solu√ß√£o tempor√°ria: buscar dados das DUAS
-// chaves em refreshData() e mesclar (removendo duplicados por id), at√© a
-// Ticketmaster confirmar que a chave nova j√° traz o hist√≥rico completo.
+// mas essa chave nova n&#xE3;o est&#xE1; trazendo o hist&#xF3;rico anterior &#xE0; sua cria&#xE7;&#xE3;o
+// (s&#xF3; mostra vendas recentes, a partir de hoje). A chave antiga continua
+// ativa e tem todo o hist&#xF3;rico. Solu&#xE7;&#xE3;o tempor&#xE1;ria: buscar dados das DUAS
+// chaves em refreshData() e mesclar (removendo duplicados por id), at&#xE9; a
+// Ticketmaster confirmar que a chave nova j&#xE1; traz o hist&#xF3;rico completo.
 let CROWDER_API_KEY_OLD = process.env.CROWDER_API_KEY_OLD ||
   '0b666073629dd36b18cb760355b4daf7105a7a9cd1d338cd05f9723e971b78c9';
 let CROWDER_API_KEY_NEW = process.env.CROWDER_API_KEY_NEW ||
   'fb2c661b2d309f7e6e0a83a02e0cfe54ab8fcdb15561d8457cc490f1679e2e15';
-// Mantido por compatibilidade com c√≥digo/endpoints que ainda referenciam uma
-// √∫nica chave (ex: /health/rawapi) ‚Äî aponta para a chave antiga (hist√≥rico).
+// Mantido por compatibilidade com c&#xF3;digo/endpoints que ainda referenciam uma
+// &#xFA;nica chave (ex: /health/rawapi) &#x2014; aponta para a chave antiga (hist&#xF3;rico).
 let CROWDER_API_KEY = CROWDER_API_KEY_OLD;
 // Filter: only include movements whose event name contains this string.
 // Set to '' (empty) to include all events from the organizer.
 const EVENT_NAME_FILTER = process.env.EVENT_NAME_FILTER || 'Rock in Rio';
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // STATE
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 let state = {
   data: null,           // Aggregated dashboard data
   lastRefresh: null,    // Date of last successful data fetch
@@ -55,14 +55,14 @@ let state = {
   error: null
 };
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // CROWDER DATA AGGREGATION
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 function aggregateCrowderData(movements, catalogShows = []) {
   const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
                           '2026-09-11','2026-09-12','2026-09-13'];
-  const DATE_LABELS    = ['Sex 04/Set','S√°b 05/Set','Dom 06/Set','Seg 07/Set',
-                          'Sex 11/Set','S√°b 12/Set','Dom 13/Set'];
+  const DATE_LABELS    = ['Sex 04/Set','S&#xE1;b 05/Set','Dom 06/Set','Seg 07/Set',
+                          'Sex 11/Set','S&#xE1;b 12/Set','Dom 13/Set'];
 
   // Filter only TICKET movements, optionally restricted to a specific event name
   const tickets = movements.filter(m =>
@@ -76,7 +76,7 @@ function aggregateCrowderData(movements, catalogShows = []) {
   const byDate = {}, byTime = {}, salesByDate = {};
   FESTIVAL_DATES.forEach(d => { byDate[d] = 0; });
 
-  // ‚îÄ‚îÄ Payment / demographic aggregation maps ‚îÄ‚îÄ
+  // -- Payment / demographic aggregation maps --
   const payTypeMap = {}, bankMap = {}, brandMap = {}, installMap = {}, cardTypeMap = {};
   const genderMap = {}, ageMap = {}, bankGenderMap = {};
   const freeGiftList = [];  // capture FREE/GIFT transactions in full
@@ -140,7 +140,7 @@ function aggregateCrowderData(movements, catalogShows = []) {
       salesByDate[saleDate].revenue += m.amount      || 0;
     }
 
-    // ‚îÄ‚îÄ Payment / demographic aggregation ‚îÄ‚îÄ
+    // -- Payment / demographic aggregation --
     if ((m.ticketCount || 0) > 0) {
       const pay     = m.payment || m.purchase?.payment || {};
       const cardObj = m.card    || pay.card            || {};
@@ -154,13 +154,13 @@ function aggregateCrowderData(movements, catalogShows = []) {
         discover:'DISCOVER', hiper:'HIPER' };
       const brand = rawBrand ? (BNORM[rawBrand.toLowerCase()] || rawBrand.toUpperCase()) : '';
       const instRaw = pay.instalments ?? pay.installments ?? pay.parcelas ?? cardObj.installments ?? null;
-      const install = instRaw != null ? String(instRaw) + '√ó' : '';
+      const install = instRaw != null ? String(instRaw) + '&#xD7;' : '';
       const cardType = pay.cardType || pay.card_type || cardObj.type || cardObj.cardType || '';
       const gender  = String(buyerObj.gender || m.gender || '').toUpperCase();
       const ageRaw  = buyerObj.age ?? buyerObj.ageGroup ?? m.age ?? m.ageGroup ?? null;
 
-      // ‚îÄ‚îÄ Determina label de pagamento ‚îÄ‚îÄ
-      // Cortesia Club / Cortesia sobrep√µem FREE/GIFT
+      // -- Determina label de pagamento --
+      // Cortesia Club / Cortesia sobrep&#xF5;em FREE/GIFT
       const rateCat = m.rate?.category?.name || '';
       let pt = '';
       if (rateCat === 'Cortesia Club') {
@@ -168,9 +168,9 @@ function aggregateCrowderData(movements, catalogShows = []) {
       } else if (rateCat === 'Cortesia') {
         pt = 'Cortesia';
       } else if (payType && payType !== 'FREE' && payType !== 'GIFT') {
-        pt = payType === 'CREDIT_CARD'  ? 'Cr√©dito'
+        pt = payType === 'CREDIT_CARD'  ? 'Cr&#xE9;dito'
           : payType === 'PIX'           ? 'PIX'
-          : payType === 'DEBIT_CARD'    ? 'D√©bito'
+          : payType === 'DEBIT_CARD'    ? 'D&#xE9;bito'
           : payType === 'BOLETO'        ? 'Boleto'
           : payType;
       }
@@ -214,9 +214,9 @@ function aggregateCrowderData(movements, catalogShows = []) {
       if (brand)   brandMap[brand] = (brandMap[brand] || 0) + 1;
       if (install) installMap[install] = (installMap[install] || 0) + 1;
       if (cardType) {
-        const ct = cardType === 'credit'  ? 'Cr√©dito'
-          : cardType === 'debit'   ? 'D√©bito'
-          : cardType === 'prepaid' ? 'Pr√©-pago'
+        const ct = cardType === 'credit'  ? 'Cr&#xE9;dito'
+          : cardType === 'debit'   ? 'D&#xE9;bito'
+          : cardType === 'prepaid' ? 'Pr&#xE9;-pago'
           : cardType;
         cardTypeMap[ct] = (cardTypeMap[ct] || 0) + 1;
       }
@@ -240,7 +240,7 @@ function aggregateCrowderData(movements, catalogShows = []) {
     }
   }
 
-  // Build rawShows (dashboard-compatible format) ‚Äî only shows with sales
+  // Build rawShows (dashboard-compatible format) &#x2014; only shows with sales
   const rawShows = Object.values(showMap).map(s => ({
     evId:        s.showId,
     local:       s.showName || s.eventName,
@@ -339,9 +339,9 @@ function aggregateCrowderData(movements, catalogShows = []) {
   };
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // DATA REFRESH (Crowder API with pagination)
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 async function refreshData() {
   if (state.refreshing) return;
   state.refreshing = true;
@@ -352,7 +352,7 @@ async function refreshData() {
     if (state.refreshing) {
       state.refreshing = false;
       state.error = 'Timeout: refresh demorou mais de 3 minutos.';
-      console.error('[refresh timeout] Abortado ap√≥s 3 minutos.');
+      console.error('[refresh timeout] Abortado ap&#xF3;s 3 minutos.');
     }
   }, 3 * 60 * 1000);
 
@@ -375,9 +375,9 @@ async function refreshData() {
         lastMovementId  = json.lastMovementId  || batch[batch.length - 1].id;
       }
       pages++;
-      if (pages > 2000) { console.warn(`[refresh] (${label}) Safety limit: 2000 p√°ginas`); break; }
+      if (pages > 2000) { console.warn(`[refresh] (${label}) Safety limit: 2000 p&#xE1;ginas`); break; }
     }
-    console.log(`[refresh] (${label}) ${movements.length} movements em ${pages} p√°gina(s)`);
+    console.log(`[refresh] (${label}) ${movements.length} movements em ${pages} p&#xE1;gina(s)`);
     return movements;
   }
 
@@ -388,7 +388,7 @@ async function refreshData() {
         headers: { 'ApiKey': apiKey }
       });
       if (!catRes.ok) {
-        console.warn(`[refresh] (${label}) Cat√°logo shows: HTTP ${catRes.status}`);
+        console.warn(`[refresh] (${label}) Cat&#xE1;logo shows: HTTP ${catRes.status}`);
         return [];
       }
       const catJson = await catRes.json();
@@ -400,18 +400,18 @@ async function refreshData() {
         (s.event && s.event.name && s.event.name.includes(EVENT_NAME_FILTER)) ||
         (s.name && s.name.includes(EVENT_NAME_FILTER))
       );
-      console.log(`[refresh] (${label}) Cat√°logo: ${filtered.length} shows`);
+      console.log(`[refresh] (${label}) Cat&#xE1;logo: ${filtered.length} shows`);
       return filtered;
     } catch (e) {
-      console.warn(`[refresh] (${label}) Falha ao buscar cat√°logo de shows:`, e.message);
+      console.warn(`[refresh] (${label}) Falha ao buscar cat&#xE1;logo de shows:`, e.message);
       return [];
     }
   }
 
   try {
-    // ‚îÄ‚îÄ Busca das DUAS chaves (antiga = hist√≥rico, nova = vendas recentes) ‚îÄ‚îÄ
-    // Solu√ß√£o tempor√°ria at√© a Ticketmaster confirmar que a chave nova j√°
-    // traz o hist√≥rico completo. Mescla por id de movimento, sem duplicar.
+    // -- Busca das DUAS chaves (antiga = hist&#xF3;rico, nova = vendas recentes) --
+    // Solu&#xE7;&#xE3;o tempor&#xE1;ria at&#xE9; a Ticketmaster confirmar que a chave nova j&#xE1;
+    // traz o hist&#xF3;rico completo. Mescla por id de movimento, sem duplicar.
     const keys = [
       { key: CROWDER_API_KEY_OLD, label: 'chave antiga' },
       { key: CROWDER_API_KEY_NEW, label: 'chave nova' }
@@ -436,7 +436,7 @@ async function refreshData() {
     }
     console.log(`[refresh] Total mesclado (sem duplicados): ${allMovements.length} movements`);
 
-    // Cat√°logo de shows ‚Äî mescla das duas chaves, dedup por showId/productId
+    // Cat&#xE1;logo de shows &#x2014; mescla das duas chaves, dedup por showId/productId
     const catalogsByKey = await Promise.all(
       keys.map(k => fetchCatalog(k.key, k.label))
     );
@@ -469,13 +469,13 @@ async function refreshData() {
 // Auto-refresh every 5 minutes
 cron.schedule('*/5 * * * *', refreshData);
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // EXPRESS APP
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-// Serve static JS files (dashboard.js) ‚Äî no auth required since no secrets in JS
+// Serve static JS files (dashboard.js) &#x2014; no auth required since no secrets in JS
 app.use('/js', express.static(path.join(__dirname, 'public')));
 app.use(session({
   secret: SESSION_SECRET,
@@ -484,18 +484,18 @@ app.use(session({
   cookie: { maxAge: 8 * 60 * 60 * 1000 } // 8h session
 }));
 
-// ‚îÄ‚îÄ Auth middleware ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Auth middleware --------------------------
 function requireAuth(req, res, next) {
   if (req.session.user) return next();
   res.redirect('/login');
 }
 
-// ‚îÄ‚îÄ Public: list loaded usernames (no passwords exposed) ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Public: list loaded usernames (no passwords exposed) ----
 app.get('/health/users', (req, res) => {
   res.json({ users: Object.keys(USERS), count: Object.keys(USERS).length });
 });
 
-// ‚îÄ‚îÄ Debug: proxy Crowder shows catalog ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Debug: proxy Crowder shows catalog ------
 app.get('/api/debug/shows', requireAuth, async (req, res) => {
   try {
     const r = await fetch(`${CROWDER_BASE}/shows/organizer`, { headers: { 'ApiKey': CROWDER_API_KEY } });
@@ -506,7 +506,7 @@ app.get('/api/debug/shows', requireAuth, async (req, res) => {
   }
 });
 
-// ‚îÄ‚îÄ Public health check (no auth) ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Public health check (no auth) -----------
 app.get('/health', (req, res) => {
   res.json({
     ok: true,
@@ -520,14 +520,14 @@ app.get('/health', (req, res) => {
   });
 });
 
-// ‚îÄ‚îÄ Public: sales by date for spreadsheet export (no auth) ‚îÄ
+// -- Public: sales by date for spreadsheet export (no auth) -
 app.get('/health/salesbydate', (req, res) => {
   if (!state.data) return res.json({ ok: false, message: 'Sem dados ainda' });
   res.json({ ok: true, salesByDate: state.data.salesByDate || [] });
 });
 
 
-// ‚îÄ‚îÄ Debug: check current Crowder API key status (auth required).
+// -- Debug: check current Crowder API key status (auth required).
 //    PII fields are stripped from any sample movement returned.
 app.get('/health/rawapi', requireAuth, async (req, res) => {
   function redact(m) {
@@ -577,7 +577,7 @@ app.get('/health/rawapi', requireAuth, async (req, res) => {
   }
 });
 
-// ‚îÄ‚îÄ Public debug: list unique events (no auth) ‚îÄ
+// -- Public debug: list unique events (no auth) -
 app.get('/health/events', (req, res) => {
   if (!state.data) return res.json({ ok: false, message: 'Sem dados ainda' });
   // Summarize unique events from rawShows
@@ -592,13 +592,13 @@ app.get('/health/events', (req, res) => {
   res.json(Object.values(evMap).sort((a,b) => b.tks - a.tks));
 });
 
-// ‚îÄ‚îÄ Login page ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Login page ------------------------------
 app.get('/login', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Dashboard Rock in Rio ‚Äî Login</title>
+<title>Dashboard Rock in Rio &#x2014; Login</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#0a0c10;color:#e8eaf0;font-family:'Segoe UI',system-ui,sans-serif;
@@ -623,10 +623,10 @@ app.get('/login', (req, res) => {
 <div class="card">
   <div class="badge">Rock in Rio 2026</div>
   <h1>Primeira Classe</h1>
-  <p>Dashboard de Vendas ‚Äî Acesso Restrito</p>
-  ${req.query.error ? '<div class="err">Usu√°rio ou senha incorretos.</div>' : ''}
+  <p>Dashboard de Vendas &#x2014; Acesso Restrito</p>
+  ${req.query.error ? '<div class="err">Usu&#xE1;rio ou senha incorretos.</div>' : ''}
   <form method="POST" action="/login">
-    <label>Usu√°rio</label>
+    <label>Usu&#xE1;rio</label>
     <input name="username" type="text" autocomplete="username" required autofocus>
     <label>Senha</label>
     <input name="password" type="password" autocomplete="current-password" required>
@@ -650,7 +650,7 @@ app.post('/logout', (req, res) => {
   res.redirect('/login');
 });
 
-// ‚îÄ‚îÄ API: data endpoint ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- API: data endpoint -----------------------
 app.get('/api/data', requireAuth, (req, res) => {
   res.json({
     data:        state.data,
@@ -661,12 +661,12 @@ app.get('/api/data', requireAuth, (req, res) => {
 });
 
 app.post('/api/refresh', requireAuth, async (req, res) => {
-  if (state.refreshing) return res.json({ ok: false, message: 'J√° est√° atualizando...' });
+  if (state.refreshing) return res.json({ ok: false, message: 'J&#xE1; est&#xE1; atualizando...' });
   refreshData(); // fire and don't wait
-  res.json({ ok: true, message: 'Atualiza√ß√£o iniciada...' });
+  res.json({ ok: true, message: 'Atualiza&#xE7;&#xE3;o iniciada...' });
 });
 
-// ‚îÄ‚îÄ Debug: force refresh ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Debug: force refresh ---------------------
 app.get('/api/debug/refresh', requireAuth, async (req, res) => {
   try {
     await refreshData();
@@ -676,7 +676,7 @@ app.get('/api/debug/refresh', requireAuth, async (req, res) => {
   }
 });
 
-// ‚îÄ‚îÄ Admin: update Crowder API key at runtime ‚îÄ
+// -- Admin: update Crowder API key at runtime -
 app.post('/admin/update-api-key', (req, res) => {
   const secret = req.headers['x-admin-secret'] || req.body?.adminSecret;
   if (!secret || secret !== (process.env.ADMIN_SECRET || 'rir-admin-2026')) {
@@ -684,41 +684,41 @@ app.post('/admin/update-api-key', (req, res) => {
   }
   const { apiKey } = req.body || {};
   if (!apiKey || typeof apiKey !== 'string' || apiKey.length < 10) {
-    return res.status(400).json({ error: 'apiKey inv√°lida' });
+    return res.status(400).json({ error: 'apiKey inv&#xE1;lida' });
   }
   CROWDER_API_KEY = apiKey;
   res.json({ ok: true, message: 'API key atualizada. Atualizando dados...' });
   refreshData();
 });
 
-// ‚îÄ‚îÄ Dashboard (main page) ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Dashboard (main page) --------------------
 app.get('/', requireAuth, (req, res) => {
   res.send(getDashboardHTML(req.session.user));
 });
 
-/// ‚îÄ‚îÄ API: gratuidades/cortesia export ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+/// -- API: gratuidades/cortesia export --------
 app.get('/api/gratuidades', requireAuth, (req, res) => {
   if (!state.data) return res.json({ loading: true });
   res.json({ list: state.data.freeGiftList || [], updatedAt: state.lastRefresh });
 });
 
-// ‚îÄ‚îÄ API: cortesia-club export (CSV download) ‚îÄ
+// -- API: cortesia-club export (CSV download) -
 app.get('/api/cortesia-club/csv', requireAuth, (req, res) => {
   if (!state.data) return res.status(503).send('Data not loaded');
   const list = (state.data.freeGiftList || []).filter(r =>
     r.rate_category === 'Cortesia Club' || r.rate_category === 'Cortesia'
   );
   const cols = ['tipo','data_compra','hora_compra','id_compra','produto','show','data_show','evento','qtd_ingressos','valor_face','rate_name','rate_category','pay_type','voucher','canal','canal_tipo','nome','email','genero','idade','cidade','estado','pais','device','os'];
-  const hdr = ['Tipo','Data Compra','Hora','ID Compra','Produto','Show','Data Show','Evento','Qtd','Valor Face','Rate Name','Rate Category','Pay Type','Voucher','Canal','Canal Tipo','Nome','Email','G√™nero','Idade','Cidade','Estado','Pa√≠s','Device','OS'];
+  const hdr = ['Tipo','Data Compra','Hora','ID Compra','Produto','Show','Data Show','Evento','Qtd','Valor Face','Rate Name','Rate Category','Pay Type','Voucher','Canal','Canal Tipo','Nome','Email','G&#xEA;nero','Idade','Cidade','Estado','Pa&#xED;s','Device','OS'];
   const esc = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
   const lines = [hdr.map(esc).join(','), ...list.map(r => cols.map(c => esc(r[c])).join(','))];
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="cortesia_club.csv"');
-  res.send('Ôªø' + lines.join('\r\n')); // BOM for Excel
+  res.send('&#xFEFF;' + lines.join('\r\n')); // BOM for Excel
 
 });
 
-// ‚îÄ‚îÄ API: pagamento-data endpoint ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- API: pagamento-data endpoint -------------
 app.get('/api/pagamento-data', requireAuth, (req, res) => {
   if (!state.data) return res.json({ loading: true });
   const ps = state.data.paymentStats || {};
@@ -729,9 +729,9 @@ app.get('/api/pagamento-data', requireAuth, (req, res) => {
     .sort((a,b) => parseInt(a[0]||0) - parseInt(b[0]||0));
 
   const total    = state.data.totalSold || 0;
-  const ccCount  = (ps.payTypeMap || {})['Cr√©dito'] || 0;
+  const ccCount  = (ps.payTypeMap || {})['Cr&#xE9;dito'] || 0;
   const pixCount = (ps.payTypeMap || {})['PIX']     || 0;
-  const debCount = (ps.payTypeMap || {})['D√©bito']  || 0;
+  const debCount = (ps.payTypeMap || {})['D&#xE9;bito']  || 0;
 
   res.json({
     loading:       false,
@@ -750,12 +750,12 @@ app.get('/api/pagamento-data', requireAuth, (req, res) => {
   });
 });
 
-// ‚îÄ‚îÄ Sub-page: Pagamento √ó Perfil ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Sub-page: Pagamento &#xD7; Perfil -------------
 app.get('/pagamento', requireAuth, (req, res) => {
   res.send(getPagamentoHTML(req.session.user));
 });
 
-// ‚îÄ‚îÄ API: velocidade-data endpoint ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- API: velocidade-data endpoint ------------
 app.get('/api/velocidade-data', requireAuth, (req, res) => {
   if (!state.data) return res.json({ loading: true });
 
@@ -802,7 +802,7 @@ app.get('/api/velocidade-data', requireAuth, (req, res) => {
     return Math.round(slice.reduce((s,x) => s+(x.tks||0), 0) / slice.length);
   });
 
-  // Projection: days remaining √ó avg7
+  // Projection: days remaining &#xD7; avg7
   const projectedRemaining = avg7 * daysLeft;
   const projectedTotal     = totalTks + projectedRemaining;
 
@@ -817,24 +817,24 @@ app.get('/api/velocidade-data', requireAuth, (req, res) => {
   });
 });
 
-// ‚îÄ‚îÄ Sub-page: Velocidade de Vendas ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Sub-page: Velocidade de Vendas ------------
 app.get('/velocidade', requireAuth, (req, res) => {
   res.send(getVelocidadeHTML(req.session.user));
 });
 
-// ‚îÄ‚îÄ Sub-page: Lista de Eventos ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Sub-page: Lista de Eventos -------------
 app.get('/eventos', requireAuth, (req, res) => {
   res.send(getEventosHTML(req.session.user));
 });
 
-// ‚îÄ‚îÄ Sub-page: Eventos Lotados ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Sub-page: Eventos Lotados ----------------
 app.get('/lotados', requireAuth, (req, res) => {
   res.send(getLotadosHTML(req.session.user));
 });
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // SHARED CSS VARIABLES (dark theme)
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 const SHARED_CSS_VARS = `
   :root {
     --bg:#0a0c10;--surface:#131720;--surface2:#1c2232;--border:#252d3d;
@@ -903,16 +903,16 @@ const SHARED_HEADER_CSS = `
   }
 `;
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // DASHBOARD HTML
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 function getDashboardHTML(username) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Primeira Classe Rock in Rio ‚Äî Dashboard de Vendas</title>
+<title>Primeira Classe Rock in Rio &#x2014; Dashboard de Vendas</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -924,7 +924,7 @@ ${SHARED_HEADER_CSS}
     --muted:#7a8499;--green:#2ec27e;--blue:#5b8dee;--purple:#9b59b6;--teal:#1abc9c;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  /* ‚îÄ‚îÄ HEATMAP ‚îÄ‚îÄ */
+  /* -- HEATMAP -- */
   .heatmap-wrap{overflow-x:auto}
   .heatmap-table{border-collapse:collapse;min-width:100%}
   .heatmap-table th{padding:8px 12px;font-size:10px;font-weight:600;color:var(--muted);text-align:center;white-space:nowrap}
@@ -932,7 +932,7 @@ ${SHARED_HEADER_CSS}
   .heatmap-table td{padding:5px 8px;font-size:11px;text-align:center;border:1px solid var(--border)}
   .heatmap-table td.event-name{text-align:left;font-weight:600;white-space:nowrap;background:var(--surface2)}
   .hm-cell{border-radius:4px;padding:3px 8px;font-weight:700;font-size:11px;display:inline-block;min-width:30px}
-  /* ‚îÄ‚îÄ EVENTS TABLE ‚îÄ‚îÄ */
+  /* -- EVENTS TABLE -- */
   .table-section{padding:0 32px 40px}
   .table-controls{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap}
   .search-input{background:var(--surface);border:1px solid var(--border);border-radius:8px;
@@ -946,7 +946,7 @@ ${SHARED_HEADER_CSS}
   .events-table tr:hover td{background:var(--surface2)}
   .badge-sold{background:#1a2a1a;color:var(--green);font-size:11px;font-weight:700;
     padding:3px 8px;border-radius:4px;display:inline-block}
-  /* ‚îÄ‚îÄ MODAL HIST√ìRICO ‚îÄ‚îÄ */
+  /* -- MODAL HIST&#xD3;RICO -- */
   .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
   .modal-overlay.hidden{display:none}
   .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:900px;padding:32px;position:relative}
@@ -964,7 +964,7 @@ ${SHARED_HEADER_CSS}
   .growth-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;display:inline-block}
   .growth-pos{background:#1a2a1a;color:var(--green)}
   .growth-neg{background:#2a1a1a;color:var(--accent)}
-  /* ‚îÄ‚îÄ PROJE√á√ÉO ‚îÄ‚îÄ */
+  /* -- PROJE&#xC7;&#xC3;O -- */
   .proj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;padding:16px 32px 0}
   .proj-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden}
   .proj-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
@@ -985,7 +985,7 @@ ${SHARED_HEADER_CSS}
   .proj-input{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text);font-size:13px;width:80px;text-align:center;outline:none}
   .proj-input:focus{border-color:var(--accent)}
   .proj-input-label{font-size:12px;color:var(--muted)}
-  /* ‚îÄ‚îÄ RANKING ‚îÄ‚îÄ */
+  /* -- RANKING -- */
   .ranking-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 32px}
   .rank-table{width:100%;border-collapse:collapse}
   .rank-table tr{border-bottom:1px solid var(--border)}
@@ -1001,7 +1001,7 @@ ${SHARED_HEADER_CSS}
   .rank-bar-blue{background:var(--blue)}
   .rank-val{padding:8px 6px;font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;text-align:right;min-width:44px}
   .rank-sub{font-size:10px;color:var(--muted)}
-  /* ‚îÄ‚îÄ NAV CARDS ‚îÄ‚îÄ */
+  /* -- NAV CARDS -- */
   .nav-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:20px 32px 0}
   .nav-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;
     text-decoration:none;color:var(--text);display:flex;align-items:center;gap:16px;transition:.2s;cursor:pointer}
@@ -1029,8 +1029,8 @@ ${SHARED_HEADER_CSS}
   <div class="header-left">
     <div class="logo-badge">Rock in Rio 2026</div>
     <div>
-      <h1>Primeira Classe ‚Äî Dashboard de Vendas</h1>
-      <p>Setembro 2026 ¬∑ Logado como <strong>${username}</strong></p>
+      <h1>Primeira Classe &#x2014; Dashboard de Vendas</h1>
+      <p>Setembro 2026 &#xB7; Logado como <strong>${username}</strong></p>
     </div>
   </div>
   <div class="header-right">
@@ -1041,8 +1041,8 @@ ${SHARED_HEADER_CSS}
       </svg>
       Atualizar
     </button>
-    <button class="btn" onclick="exportComparativo()" id="export-comp-btn" style="background:#2ec27e;color:#fff">‚Üì Comparativo</button>
-    <button class="btn btn-primary" onclick="exportXLS()" id="export-btn">‚Üì XLS</button>
+    <button class="btn" onclick="exportComparativo()" id="export-comp-btn" style="background:#2ec27e;color:#fff">&#x2193; Comparativo</button>
+    <button class="btn btn-primary" onclick="exportXLS()" id="export-btn">&#x2193; XLS</button>
     <form method="POST" action="/logout" style="margin:0">
       <button class="btn btn-secondary" type="submit">Sair</button>
     </form>
@@ -1057,43 +1057,43 @@ ${SHARED_HEADER_CSS}
 <!-- NAV CARDS -->
 <div class="nav-cards">
   <a href="/eventos" class="nav-card">
-    <div class="nav-card-icon">üóìÔ∏è</div>
-    <div><div class="nav-card-title">Lista de Eventos</div><div class="nav-card-desc">Todos os shows com status de ocupa√ß√£o</div></div>
-    <div class="nav-card-arrow">‚Ä∫</div>
+    <div class="nav-card-icon">&#x1F5D3;&#xFE0F;</div>
+    <div><div class="nav-card-title">Lista de Eventos</div><div class="nav-card-desc">Todos os shows com status de ocupa&#xE7;&#xE3;o</div></div>
+    <div class="nav-card-arrow">&#x203A;</div>
   </a>
   <a href="/lotados" class="nav-card" style="border-color:#e6394644">
-    <div class="nav-card-icon">üö®</div>
-    <div><div class="nav-card-title">Eventos Lotados</div><div class="nav-card-desc">Hor√°rios esgotados e novos hor√°rios</div></div>
-    <div class="nav-card-arrow">‚Ä∫</div>
+    <div class="nav-card-icon">&#x1F6A8;</div>
+    <div><div class="nav-card-title">Eventos Lotados</div><div class="nav-card-desc">Hor&#xE1;rios esgotados e novos hor&#xE1;rios</div></div>
+    <div class="nav-card-arrow">&#x203A;</div>
   </a>
   <a href="/pagamento" class="nav-card" style="border-color:#5b8dee44">
-    <div class="nav-card-icon">üí≥</div>
-    <div><div class="nav-card-title">Pagamento √ó Perfil</div><div class="nav-card-desc">Bandeiras, bancos, parcelamento e perfil do comprador</div></div>
-    <div class="nav-card-arrow">‚Ä∫</div>
+    <div class="nav-card-icon">&#x1F4B3;</div>
+    <div><div class="nav-card-title">Pagamento &#xD7; Perfil</div><div class="nav-card-desc">Bandeiras, bancos, parcelamento e perfil do comprador</div></div>
+    <div class="nav-card-arrow">&#x203A;</div>
   </a>
   <a href="/velocidade" class="nav-card" style="border-color:#2ec27e44">
-    <div class="nav-card-icon">üöÄ</div>
-    <div><div class="nav-card-title">Velocidade de Vendas</div><div class="nav-card-desc">Ritmo di√°rio, tend√™ncia e proje√ß√£o at√© o festival</div></div>
-    <div class="nav-card-arrow">‚Ä∫</div>
+    <div class="nav-card-icon">&#x1F680;</div>
+    <div><div class="nav-card-title">Velocidade de Vendas</div><div class="nav-card-desc">Ritmo di&#xE1;rio, tend&#xEA;ncia e proje&#xE7;&#xE3;o at&#xE9; o festival</div></div>
+    <div class="nav-card-arrow">&#x203A;</div>
   </a>
 </div>
 
-<!-- MODAL COMPARATIVO HIST√ìRICO -->
+<!-- MODAL COMPARATIVO HIST&#xD3;RICO -->
 <div class="modal-overlay hidden" id="hist-modal" onclick="if(event.target===this)closeHistorico()">
   <div class="modal-box">
-    <button class="modal-close" onclick="closeHistorico()">√ó</button>
+    <button class="modal-close" onclick="closeHistorico()">&#xD7;</button>
     <div style="margin-bottom:20px">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">S√©rie Hist√≥rica</div>
-      <h2 style="font-size:22px;font-weight:800">Comparativo de Edi√ß√µes ‚Äî Primeira Classe</h2>
-      <p style="font-size:12px;color:var(--muted);margin-top:4px">Snapshot na mesma janela de anteced√™ncia ao 1¬∫ dia do festival ¬∑ 2026 = dados ao vivo</p>
+      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">S&#xE9;rie Hist&#xF3;rica</div>
+      <h2 style="font-size:22px;font-weight:800">Comparativo de Edi&#xE7;&#xF5;es &#x2014; Primeira Classe</h2>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">Snapshot na mesma janela de anteced&#xEA;ncia ao 1&#xBA; dia do festival &#xB7; 2026 = dados ao vivo</p>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
       <div class="chart-card">
-        <div class="chart-title">Ingressos Vendidos por Edi√ß√£o</div>
+        <div class="chart-title">Ingressos Vendidos por Edi&#xE7;&#xE3;o</div>
         <canvas id="histTicketsChart" height="200"></canvas>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Receita Total (R$) por Edi√ß√£o</div>
+        <div class="chart-title">Receita Total (R$) por Edi&#xE7;&#xE3;o</div>
         <canvas id="histRevenueChart" height="200"></canvas>
       </div>
     </div>
@@ -1108,15 +1108,15 @@ ${SHARED_HEADER_CSS}
 </html>`;
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // TEMPO DE VENDAS PAGE
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 function getTempoHTML(username) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tempo de Vendas ‚Äî Rock in Rio 2026</title>
+<title>Tempo de Vendas &#x2014; Rock in Rio 2026</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 ${SHARED_CSS_VARS}
@@ -1150,58 +1150,58 @@ ${SHARED_HEADER_CSS}
 <div id="loading"><div class="spinner"></div><span>Carregando dados...</span></div>
 <header>
   <div class="header-left">
-    <a href="/" class="btn btn-back" style="text-decoration:none">‚Üê Voltar</a>
+    <a href="/" class="btn btn-back" style="text-decoration:none">&#x2190; Voltar</a>
     <div class="logo-badge">Rock in Rio 2026</div>
-    <div><h1>Tempo de Vendas</h1><p>An√°lise temporal das vendas de Primeira Classe</p></div>
+    <div><h1>Tempo de Vendas</h1><p>An&#xE1;lise temporal das vendas de Primeira Classe</p></div>
   </div>
   <div class="header-right">
-    <button class="btn btn-secondary" onclick="loadData()">‚Üª Atualizar</button>
+    <button class="btn btn-secondary" onclick="loadData()">&#x21BB; Atualizar</button>
     <form method="POST" action="/logout" style="margin:0"><button class="btn btn-secondary" type="submit">Sair</button></form>
   </div>
 </header>
 <div id="status-bar"><span class="status-dot" id="status-dot"></span><span id="status-text">Conectando...</span></div>
 <div class="content">
   <div class="kpis">
-    <div class="kpi gold"><div class="kpi-icon">üìÖ</div><div class="kpi-label">Melhor Semana</div><div class="kpi-val" id="kpi-semana" style="font-size:14px">‚Äî</div><div class="kpi-sub" id="kpi-semana-n">‚Äî</div></div>
-    <div class="kpi blue"><div class="kpi-icon">üìÜ</div><div class="kpi-label">Melhor Dia da Semana</div><div class="kpi-val" id="kpi-dia">‚Äî</div><div class="kpi-sub" id="kpi-dia-n">‚Äî</div></div>
-    <div class="kpi green"><div class="kpi-icon">üé´</div><div class="kpi-label">Total Ingressos</div><div class="kpi-val" id="kpi-total">‚Äî</div><div class="kpi-sub">registros</div></div>
-    <div class="kpi pink"><div class="kpi-icon">‚è≥</div><div class="kpi-label">Dias at√© o Festival</div><div class="kpi-val" id="kpi-dias">‚Äî</div><div class="kpi-sub">at√© 04/09/2026</div></div>
+    <div class="kpi gold"><div class="kpi-icon">&#x1F4C5;</div><div class="kpi-label">Melhor Semana</div><div class="kpi-val" id="kpi-semana" style="font-size:14px">&#x2014;</div><div class="kpi-sub" id="kpi-semana-n">&#x2014;</div></div>
+    <div class="kpi blue"><div class="kpi-icon">&#x1F4C6;</div><div class="kpi-label">Melhor Dia da Semana</div><div class="kpi-val" id="kpi-dia">&#x2014;</div><div class="kpi-sub" id="kpi-dia-n">&#x2014;</div></div>
+    <div class="kpi green"><div class="kpi-icon">&#x1F3AB;</div><div class="kpi-label">Total Ingressos</div><div class="kpi-val" id="kpi-total">&#x2014;</div><div class="kpi-sub">registros</div></div>
+    <div class="kpi pink"><div class="kpi-icon">&#x23F3;</div><div class="kpi-label">Dias at&#xE9; o Festival</div><div class="kpi-val" id="kpi-dias">&#x2014;</div><div class="kpi-sub">at&#xE9; 04/09/2026</div></div>
   </div>
 
   <div class="section">
-    <div class="section-title">üìÖ Vendas por Semana</div>
+    <div class="section-title">&#x1F4C5; Vendas por Semana</div>
     <div class="chart-wrap-tall"><canvas id="chart-semanas"></canvas></div>
   </div>
 
   <div class="charts-row">
     <div class="section">
-      <div class="section-title">üìÜ Vendas por Dia da Semana</div>
+      <div class="section-title">&#x1F4C6; Vendas por Dia da Semana</div>
       <div class="chart-wrap"><canvas id="chart-diasemana"></canvas></div>
     </div>
     <div class="section">
-      <div class="section-title">üìà Acumulado de Vendas</div>
+      <div class="section-title">&#x1F4C8; Acumulado de Vendas</div>
       <div class="chart-wrap"><canvas id="chart-acumulado"></canvas></div>
     </div>
   </div>
 
   <div class="charts-row-3">
     <div class="section">
-      <div class="section-title">üèÜ Top Semanas</div>
+      <div class="section-title">&#x1F3C6; Top Semanas</div>
       <div class="table-scroll"><table class="rank-table" id="tbl-semanas"><thead><tr><th>#</th><th>Semana</th><th>Ingressos</th></tr></thead><tbody></tbody></table></div>
     </div>
     <div class="section">
-      <div class="section-title">üèÜ Top Dias da Semana</div>
+      <div class="section-title">&#x1F3C6; Top Dias da Semana</div>
       <div class="table-scroll"><table class="rank-table" id="tbl-dias"><thead><tr><th>#</th><th>Dia</th><th>Ingressos</th></tr></thead><tbody></tbody></table></div>
     </div>
     <div class="section">
-      <div class="section-title">üìÖ √öltimos 10 Dias</div>
+      <div class="section-title">&#x1F4C5; &#xDA;ltimos 10 Dias</div>
       <div class="table-scroll"><table class="rank-table" id="tbl-recent"><thead><tr><th>Data</th><th>Ingressos</th><th>Receita</th></tr></thead><tbody></tbody></table></div>
     </div>
   </div>
 </div>
 <script>
-const DIAS = ['Domingo','Segunda','Ter√ßa','Quarta','Quinta','Sexta','S√°bado'];
-const DIAS_C = ['Dom','Seg','Ter','Qua','Qui','Sex','S√°b'];
+const DIAS = ['Domingo','Segunda','Ter&#xE7;a','Quarta','Quinta','Sexta','S&#xE1;bado'];
+const DIAS_C = ['Dom','Seg','Ter','Qua','Qui','Sex','S&#xE1;b'];
 const fmt = n => Number(n||0).toLocaleString('pt-BR');
 const fmtR = n => 'R$ ' + Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
 let charts = {};
@@ -1278,7 +1278,7 @@ async function loadData() {
     if(!d) throw new Error('Sem dados');
     render(d.salesByDate||[]);
     const dot = document.getElementById('status-dot'); dot.className='status-dot green';
-    document.getElementById('status-text').textContent = 'Dados ao vivo ¬∑ Atualizado: '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'‚Äî');
+    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; Atualizado: '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'&#x2014;');
     document.getElementById('loading').classList.add('hidden');
   } catch(e) {
     document.getElementById('status-dot').className='status-dot red';
@@ -1291,15 +1291,15 @@ document.addEventListener('DOMContentLoaded', loadData);
 </body></html>`;
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // PRODUTOS & SETORES PAGE
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 function getPerfilHTML(username) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Produtos & Setores ‚Äî Rock in Rio 2026</title>
+<title>Produtos & Setores &#x2014; Rock in Rio 2026</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 ${SHARED_CSS_VARS}
@@ -1333,42 +1333,42 @@ ${SHARED_HEADER_CSS}
 <div id="loading"><div class="spinner"></div><span>Carregando dados...</span></div>
 <header>
   <div class="header-left">
-    <a href="/" class="btn btn-back" style="text-decoration:none">‚Üê Voltar</a>
+    <a href="/" class="btn btn-back" style="text-decoration:none">&#x2190; Voltar</a>
     <div class="logo-badge">Rock in Rio 2026</div>
     <div><h1>Produtos & Setores</h1><p>Breakdown de vendas por setor, produto e data do show</p></div>
   </div>
   <div class="header-right">
-    <button class="btn btn-secondary" onclick="loadData()">‚Üª Atualizar</button>
+    <button class="btn btn-secondary" onclick="loadData()">&#x21BB; Atualizar</button>
     <form method="POST" action="/logout" style="margin:0"><button class="btn btn-secondary" type="submit">Sair</button></form>
   </div>
 </header>
 <div id="status-bar"><span class="status-dot" id="status-dot"></span><span id="status-text">Conectando...</span></div>
 <div class="content">
   <div class="kpis">
-    <div class="kpi"><div class="kpi-icon">üé´</div><div class="kpi-label">Total Vendido</div><div class="kpi-val" id="kpi-total">‚Äî</div><div class="kpi-sub">ingressos</div></div>
-    <div class="kpi green"><div class="kpi-icon">üí∞</div><div class="kpi-label">Receita Total</div><div class="kpi-val" id="kpi-receita" style="font-size:16px">‚Äî</div></div>
-    <div class="kpi gold"><div class="kpi-icon">üèÜ</div><div class="kpi-label">Top Setor</div><div class="kpi-val" id="kpi-top-setor" style="font-size:15px">‚Äî</div><div class="kpi-sub" id="kpi-top-setor-n">‚Äî</div></div>
-    <div class="kpi blue"><div class="kpi-icon">üé™</div><div class="kpi-label">Top Show</div><div class="kpi-val" id="kpi-top-show" style="font-size:13px">‚Äî</div><div class="kpi-sub" id="kpi-top-show-n">‚Äî</div></div>
+    <div class="kpi"><div class="kpi-icon">&#x1F3AB;</div><div class="kpi-label">Total Vendido</div><div class="kpi-val" id="kpi-total">&#x2014;</div><div class="kpi-sub">ingressos</div></div>
+    <div class="kpi green"><div class="kpi-icon">&#x1F4B0;</div><div class="kpi-label">Receita Total</div><div class="kpi-val" id="kpi-receita" style="font-size:16px">&#x2014;</div></div>
+    <div class="kpi gold"><div class="kpi-icon">&#x1F3C6;</div><div class="kpi-label">Top Setor</div><div class="kpi-val" id="kpi-top-setor" style="font-size:15px">&#x2014;</div><div class="kpi-sub" id="kpi-top-setor-n">&#x2014;</div></div>
+    <div class="kpi blue"><div class="kpi-icon">&#x1F3AA;</div><div class="kpi-label">Top Show</div><div class="kpi-val" id="kpi-top-show" style="font-size:13px">&#x2014;</div><div class="kpi-sub" id="kpi-top-show-n">&#x2014;</div></div>
   </div>
 
   <div class="charts-row">
     <div class="section">
-      <div class="section-title">üé™ Ingressos por Show / Data</div>
+      <div class="section-title">&#x1F3AA; Ingressos por Show / Data</div>
       <div class="chart-wrap-tall"><canvas id="chart-shows"></canvas></div>
     </div>
     <div class="section">
-      <div class="section-title">üéüÔ∏è Ingressos por Setor</div>
+      <div class="section-title">&#x1F39F;&#xFE0F; Ingressos por Setor</div>
       <div class="chart-wrap-tall"><canvas id="chart-setores"></canvas></div>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">üì¶ Top Produtos</div>
+    <div class="section-title">&#x1F4E6; Top Produtos</div>
     <div class="chart-wrap" style="height:260px"><canvas id="chart-produtos"></canvas></div>
   </div>
 
   <div class="section">
-    <div class="section-title">üìã Detalhamento por Produto</div>
+    <div class="section-title">&#x1F4CB; Detalhamento por Produto</div>
     <div class="table-scroll">
       <table class="data-table" id="tbl-produtos">
         <thead><tr><th>#</th><th>Produto / Setor</th><th>Show</th><th>Ingressos</th><th>Receita</th></tr></thead>
@@ -1379,7 +1379,7 @@ ${SHARED_HEADER_CSS}
 </div>
 <script>
 const fmt = n => Number(n||0).toLocaleString('pt-BR');
-const fmtR = n => 'R$¬†'+Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtR = n => 'R$&#xA0;'+Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
 let charts = {};
 function mk(id,cfg){if(charts[id])charts[id].destroy();const c=document.getElementById(id);if(c)charts[id]=new Chart(c,cfg);}
 const PALETTE = ['#e63946','#5b8dee','#2ec27e','#ffd700','#f4a261','#9b59b6','#1abc9c','#e67e22','#3498db','#e74c3c','#2ecc71','#f39c12'];
@@ -1402,7 +1402,7 @@ function render(rawShows) {
   const topShow = showEntries[0];
   if(topShow){document.getElementById('kpi-top-show').textContent=topShow[0].substring(0,22);document.getElementById('kpi-top-show-n').textContent=fmt(topShow[1].tks)+' ing.';}
 
-  const showLabels = showEntries.slice(0,12).map(([k])=>k.length>28?k.substring(0,28)+'‚Ä¶':k);
+  const showLabels = showEntries.slice(0,12).map(([k])=>k.length>28?k.substring(0,28)+'&#x2026;':k);
   const showVals = showEntries.slice(0,12).map(([,v])=>v.tks);
   mk('chart-shows',{type:'bar',data:{labels:showLabels,datasets:[{data:showVals,backgroundColor:PALETTE,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}},scales:{x:{ticks:{color:'#7a8499',callback:v=>fmt(v)},grid:{color:'#252d3d'}},y:{ticks:{color:'#e8eaf0',font:{size:11}},grid:{color:'#252d3d'}}}}});
 
@@ -1412,13 +1412,13 @@ function render(rawShows) {
   const setorEntries = Object.entries(setorMap).sort((a,b)=>b[1]-a[1]);
   const topSetor = setorEntries[0];
   if(topSetor){document.getElementById('kpi-top-setor').textContent=topSetor[0].substring(0,18);document.getElementById('kpi-top-setor-n').textContent=fmt(topSetor[1])+' ingressos';}
-  mk('chart-setores',{type:'doughnut',data:{labels:setorEntries.map(([k])=>k.length>22?k.substring(0,22)+'‚Ä¶':k),datasets:[{data:setorEntries.map(([,v])=>v),backgroundColor:PALETTE,borderWidth:2,borderColor:'#131720'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#e8eaf0',font:{size:11},boxWidth:14}},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}}}});
+  mk('chart-setores',{type:'doughnut',data:{labels:setorEntries.map(([k])=>k.length>22?k.substring(0,22)+'&#x2026;':k),datasets:[{data:setorEntries.map(([,v])=>v),backgroundColor:PALETTE,borderWidth:2,borderColor:'#131720'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#e8eaf0',font:{size:11},boxWidth:14}},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}}}});
 
   // By product
   const prodMap = {};
   shows.forEach(s=>{const k=s.productName||s.sectorName||'Outro';if(!prodMap[k])prodMap[k]={tks:0,rev:0};prodMap[k].tks+=s.tks;prodMap[k].rev+=(s.subtotal||0);});
   const prodEntries = Object.entries(prodMap).sort((a,b)=>b[1].tks-a[1].tks);
-  const pLabels = prodEntries.slice(0,10).map(([k])=>k.length>30?k.substring(0,30)+'‚Ä¶':k);
+  const pLabels = prodEntries.slice(0,10).map(([k])=>k.length>30?k.substring(0,30)+'&#x2026;':k);
   const pVals = prodEntries.slice(0,10).map(([,v])=>v.tks);
   const maxP = Math.max(...pVals,1);
   mk('chart-produtos',{type:'bar',data:{labels:pLabels,datasets:[{data:pVals,backgroundColor:pVals.map(v=>v===maxP?'#ffd700':'#5b8dee'),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}},scales:{x:{ticks:{color:'#7a8499',font:{size:10},maxRotation:30},grid:{color:'#252d3d'}},y:{ticks:{color:'#7a8499',callback:v=>fmt(v)},grid:{color:'#252d3d'}}}}});
@@ -1426,7 +1426,7 @@ function render(rawShows) {
   // Table
   document.querySelector('#tbl-produtos tbody').innerHTML = shows
     .sort((a,b)=>b.tks-a.tks)
-    .map((s,i)=>\`<tr><td style="color:var(--muted)">\${i+1}</td><td style="font-weight:600">\${(s.productName||s.sectorName||'‚Äî').substring(0,30)}</td><td style="color:var(--muted);font-size:12px">\${(s.showName||s.local||'‚Äî').substring(0,25)}</td><td class="num">\${fmt(s.tks)}</td><td class="rev">\${fmtR(s.subtotal||0)}</td></tr>\`)
+    .map((s,i)=>\`<tr><td style="color:var(--muted)">\${i+1}</td><td style="font-weight:600">\${(s.productName||s.sectorName||'&#x2014;').substring(0,30)}</td><td style="color:var(--muted);font-size:12px">\${(s.showName||s.local||'&#x2014;').substring(0,25)}</td><td class="num">\${fmt(s.tks)}</td><td class="rev">\${fmtR(s.subtotal||0)}</td></tr>\`)
     .join('');
 }
 
@@ -1438,7 +1438,7 @@ async function loadData() {
     if(!d) throw new Error('Sem dados');
     render(d.rawShows||[]);
     document.getElementById('status-dot').className='status-dot green';
-    document.getElementById('status-text').textContent='Dados ao vivo ¬∑ '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'‚Äî');
+    document.getElementById('status-text').textContent='Dados ao vivo &#xB7; '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'&#x2014;');
     document.getElementById('loading').classList.add('hidden');
   } catch(e) {
     document.getElementById('status-dot').className='status-dot red';
@@ -1451,32 +1451,32 @@ document.addEventListener('DOMContentLoaded', loadData);
 </body></html>`;
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // LISTA DE EVENTOS PAGE
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 function getEventosHTML(username) {
-  // Capacidades conhecidas por produto/setor (ingressos dispon√≠veis)
-  // Ajuste conforme necess√°rio
+  // Capacidades conhecidas por produto/setor (ingressos dispon&#xED;veis)
+  // Ajuste conforme necess&#xE1;rio
   const CAPACIDADES = {
     'Primeira Classe - Sexta': 500,
-    'Primeira Classe - S√°bado': 500,
+    'Primeira Classe - S&#xE1;bado': 500,
     'Primeira Classe - Domingo': 500,
     'Primeira Classe - Segunda': 500,
     'Primeira Classe - Quinta': 500,
     'Primeira Classe - Sexta 2': 500,
-    'Primeira Classe - S√°bado 2': 500,
+    'Primeira Classe - S&#xE1;bado 2': 500,
   };
-  const DEFAULT_CAP = 46; // capacidade padr√£o por produto/hor√°rio
+  const DEFAULT_CAP = 46; // capacidade padr&#xE3;o por produto/hor&#xE1;rio
 
   const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
                           '2026-09-11','2026-09-12','2026-09-13'];
   const DATE_LABELS = {
     '2026-09-04': 'Sexta-feira, 04 de Setembro',
-    '2026-09-05': 'S√°bado, 05 de Setembro',
+    '2026-09-05': 'S&#xE1;bado, 05 de Setembro',
     '2026-09-06': 'Domingo, 06 de Setembro',
     '2026-09-07': 'Segunda-feira, 07 de Setembro',
     '2026-09-11': 'Sexta-feira, 11 de Setembro',
-    '2026-09-12': 'S√°bado, 12 de Setembro',
+    '2026-09-12': 'S&#xE1;bado, 12 de Setembro',
     '2026-09-13': 'Domingo, 13 de Setembro',
   };
 
@@ -1485,7 +1485,7 @@ function getEventosHTML(username) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lista de Eventos ‚Äî Rock in Rio 2026</title>
+<title>Lista de Eventos &#x2014; Rock in Rio 2026</title>
 <style>
 ${SHARED_CSS_VARS}
 ${SHARED_HEADER_CSS}
@@ -1559,10 +1559,10 @@ ${SHARED_HEADER_CSS}
 <header>
   <div class="header-left">
     <div class="logo-badge">RiR 2026</div>
-    <div><h1>Lista de Eventos</h1><p>Ocupa√ß√£o e disponibilidade por show</p></div>
+    <div><h1>Lista de Eventos</h1><p>Ocupa&#xE7;&#xE3;o e disponibilidade por show</p></div>
   </div>
   <div class="header-right">
-    <a href="/" class="btn btn-back">‚Üê Voltar ao Dashboard</a>
+    <a href="/" class="btn btn-back">&#x2190; Voltar ao Dashboard</a>
   </div>
 </header>
 <div id="status-bar">
@@ -1582,7 +1582,7 @@ const FESTIVAL_DATES = ${JSON.stringify(FESTIVAL_DATES)};
 const DATE_LABELS = ${JSON.stringify(DATE_LABELS)};
 
 function fmt(n) { return (n||0).toLocaleString('pt-BR'); }
-function fmtR(n) { return 'R$¬†'+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+function fmtR(n) { return 'R$&#xA0;'+(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0}); }
 function fmtPct(pct) { return pct.toFixed(1)+'%'; }
 
 function getCapacity(show) {
@@ -1602,10 +1602,10 @@ function alertLevel(sold, cap) {
   return 'ok';
 }
 function alertLabel(level) {
-  if (level === 'critical') return 'üö® LOTA√á√ÉO CR√çTICA';
-  if (level === 'warning')  return '‚ö†Ô∏è QUASE ESGOTADO';
-  if (level === 'ok')       return '‚úì DISPON√çVEL';
-  return '‚Äî SEM CAPACIDADE';
+  if (level === 'critical') return '&#x1F6A8; LOTA&#xC7;&#xC3;O CR&#xCD;TICA';
+  if (level === 'warning')  return '&#x26A0;&#xFE0F; QUASE ESGOTADO';
+  if (level === 'ok')       return '&#x2713; DISPON&#xCD;VEL';
+  return '&#x2014; SEM CAPACIDADE';
 }
 
 function render(rawShows) {
@@ -1645,12 +1645,12 @@ function render(rawShows) {
     <div class="summary-sep"></div>
     <div class="summary-item"><div class="summary-label">Ingressos Vendidos</div><div class="summary-value" style="color:var(--green)">\${fmt(totalSold)}</div></div>
     <div class="summary-sep"></div>
-    <div class="summary-item"><div class="summary-label">Alertas de Ocupa√ß√£o</div><div class="summary-value" style="color:\${alertCount>0?'var(--accent)':'var(--muted)'}">\${alertCount}</div></div>
+    <div class="summary-item"><div class="summary-label">Alertas de Ocupa&#xE7;&#xE3;o</div><div class="summary-value" style="color:\${alertCount>0?'var(--accent)':'var(--muted)'}">\${alertCount}</div></div>
   </div>
   <div class="legend">
-    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>‚â• 90% ‚Äî Lota√ß√£o cr√≠tica</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>‚â• 80% ‚Äî Quase esgotado</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>< 80% ‚Äî Dispon√≠vel</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>&#x2265; 90% &#x2014; Lota&#xE7;&#xE3;o cr&#xED;tica</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>&#x2265; 80% &#x2014; Quase esgotado</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>< 80% &#x2014; Dispon&#xED;vel</div>
   </div>\`;
 
   for (const d of FESTIVAL_DATES) {
@@ -1664,7 +1664,7 @@ function render(rawShows) {
     <div class="day-header">
       <div class="day-badge">\${d.split('-')[2]+'/'+d.split('-')[1]}</div>
       <div class="day-title">\${DATE_LABELS[d]||d}</div>
-      <div class="day-stats"><strong>\${fmt(daySold)}</strong> vendidos\${dayAlerts>0?' &nbsp;¬∑&nbsp; <span style="color:var(--accent)">'+dayAlerts+' alerta'+(dayAlerts>1?'s':'')+'</span>':''}</div>
+      <div class="day-stats"><strong>\${fmt(daySold)}</strong> vendidos\${dayAlerts>0?' &nbsp;&#xB7;&nbsp; <span style="color:var(--accent)">'+dayAlerts+' alerta'+(dayAlerts>1?'s':'')+'</span>':''}</div>
     </div>
     <div class="events-grid">\`;
 
@@ -1677,17 +1677,17 @@ function render(rawShows) {
 
       html += \`<div class="event-card alert-\${level}">
         <div class="event-header">
-          <div class="event-name">\${s.productName || s.local || s.sectorName || '‚Äî'}</div>
+          <div class="event-name">\${s.productName || s.local || s.sectorName || '&#x2014;'}</div>
           <div class="alert-badge \${level}">\${alertLabel(level)}</div>
         </div>
         <div class="event-meta">
-          <span>üïê \${s.time||'‚Äî'}</span>
-          <span class="meta-sep">¬∑</span>
-          <span>\${s.sectorName||s.local||'‚Äî'}</span>
+          <span>&#x1F550; \${s.time||'&#x2014;'}</span>
+          <span class="meta-sep">&#xB7;</span>
+          <span>\${s.sectorName||s.local||'&#x2014;'}</span>
         </div>
         \${cap ? \`<div class="progress-wrap">
           <div class="progress-label">
-            <span>Ocupa√ß√£o</span>
+            <span>Ocupa&#xE7;&#xE3;o</span>
             <strong>\${fmtPct(pct)}</strong>
           </div>
           <div class="progress-bar">
@@ -1700,7 +1700,7 @@ function render(rawShows) {
             <div class="stat-value green">\${fmt(sold)}</div>
           </div>
           <div class="stat-item">
-            <div class="stat-label">Dispon√≠veis</div>
+            <div class="stat-label">Dispon&#xED;veis</div>
             <div class="stat-value \${avail===null?'muted':avail===0?'red':''}">\${avail===null?'N/D':fmt(avail)}</div>
           </div>
           <div class="stat-item">
@@ -1729,7 +1729,7 @@ async function loadData() {
     if (!d) throw new Error('Sem dados');
     render(d.rawShows || []);
     document.getElementById('status-dot').className = 'status-dot green';
-    document.getElementById('status-text').textContent = 'Dados ao vivo ¬∑ ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '‚Äî');
+    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '&#x2014;');
     document.getElementById('loading').classList.add('hidden');
   } catch(e) {
     document.getElementById('status-dot').className = 'status-dot red';
@@ -1742,15 +1742,15 @@ document.addEventListener('DOMContentLoaded', loadData);
 </body></html>`;
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // SUB-PAGE: EVENTOS LOTADOS
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 function getLotadosHTML(username) {
   const FESTIVAL_DATES = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07',
                           '2026-09-11','2026-09-12','2026-09-13'];
   const DATE_LABELS = {
-    '2026-09-04':'Sex 04/Set','2026-09-05':'S√°b 05/Set','2026-09-06':'Dom 06/Set',
-    '2026-09-07':'Seg 07/Set','2026-09-11':'Sex 11/Set','2026-09-12':'S√°b 12/Set',
+    '2026-09-04':'Sex 04/Set','2026-09-05':'S&#xE1;b 05/Set','2026-09-06':'Dom 06/Set',
+    '2026-09-07':'Seg 07/Set','2026-09-11':'Sex 11/Set','2026-09-12':'S&#xE1;b 12/Set',
     '2026-09-13':'Dom 13/Set'
   };
   const CAP = 46;
@@ -1760,7 +1760,7 @@ function getLotadosHTML(username) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Eventos Lotados ‚Äî Rock in Rio 2026</title>
+<title>Eventos Lotados &#x2014; Rock in Rio 2026</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>
 <style>
 ${SHARED_CSS_VARS}
@@ -1825,10 +1825,10 @@ ${SHARED_HEADER_CSS}
 <header>
   <div class="header-left">
     <div class="logo-badge">RiR 2026</div>
-    <div><h1>Eventos Lotados</h1><p>Hor√°rios esgotados e sugest√£o de novos hor√°rios</p></div>
+    <div><h1>Eventos Lotados</h1><p>Hor&#xE1;rios esgotados e sugest&#xE3;o de novos hor&#xE1;rios</p></div>
   </div>
   <div class="header-right">
-    <a href="/" class="btn btn-back">‚Üê Voltar ao Dashboard</a>
+    <a href="/" class="btn btn-back">&#x2190; Voltar ao Dashboard</a>
   </div>
 </header>
 <div id="status-bar">
@@ -1906,7 +1906,7 @@ function updateLotadosCount() {
   if (valEl) valEl.textContent = remaining;
   if (remaining === 0) {
     const tableWrap = document.querySelector('.lotados-table')?.closest('div');
-    if (tableWrap) tableWrap.innerHTML = '<div class="no-data-msg" style="padding:24px">üéâ Todos os hor√°rios lotados j√° possuem novo hor√°rio aceito!</div>';
+    if (tableWrap) tableWrap.innerHTML = '<div class="no-data-msg" style="padding:24px">&#x1F389; Todos os hor&#xE1;rios lotados j&#xE1; possuem novo hor&#xE1;rio aceito!</div>';
   }
 }
 
@@ -1918,12 +1918,12 @@ function renderAceitos() {
   if (count) count.textContent = aceitos.length;
 
   if (aceitos.length === 0) {
-    container.innerHTML = '<div class="empty-msg">Nenhum novo hor√°rio aceito ainda. Clique em "Aceitar" nos eventos lotados acima.</div>';
+    container.innerHTML = '<div class="empty-msg">Nenhum novo hor&#xE1;rio aceito ainda. Clique em "Aceitar" nos eventos lotados acima.</div>';
     return;
   }
 
   let html = '<table class="aceitos-table"><thead><tr>' +
-    '<th>Local de Embarque</th><th>Data</th><th>Hor√°rio Original</th><th>Novo Hor√°rio</th><th>Aceito em</th>' +
+    '<th>Local de Embarque</th><th>Data</th><th>Hor&#xE1;rio Original</th><th>Novo Hor&#xE1;rio</th><th>Aceito em</th>' +
     '</tr></thead><tbody>';
   for (const a of aceitos) {
     const dt = new Date(a.aceitoEm);
@@ -1933,7 +1933,7 @@ function renderAceitos() {
       <td><strong>\${a.local}</strong></td>
       <td><span class="tag-date">\${dateLabel}</span></td>
       <td><span class="tag-time">\${a.horarioOriginal}</span></td>
-      <td><span class="tag-new">üïê \${a.novoHorario}</span></td>
+      <td><span class="tag-new">&#x1F550; \${a.novoHorario}</span></td>
       <td style="color:var(--muted);font-size:11px">\${dtStr}</td>
     </tr>\`;
   }
@@ -1942,7 +1942,7 @@ function renderAceitos() {
 }
 
 function limparAceitos() {
-  if (!confirm('Tem certeza que deseja limpar todos os novos hor√°rios aceitos?')) return;
+  if (!confirm('Tem certeza que deseja limpar todos os novos hor&#xE1;rios aceitos?')) return;
   saveAceitos([]);
   renderAceitos();
   // Reset all buttons
@@ -1955,17 +1955,17 @@ function limparAceitos() {
 
 function exportarXLS() {
   const aceitos = getAceitos();
-  if (aceitos.length === 0) { alert('Nenhum hor√°rio aceito para exportar.'); return; }
+  if (aceitos.length === 0) { alert('Nenhum hor&#xE1;rio aceito para exportar.'); return; }
   if (typeof XLSX === 'undefined') { alert('SheetJS carregando, tente em breve.'); return; }
 
-  const wsData = [['Local de Embarque', 'Nome Completo do Evento', 'Data Festival', 'Hor√°rio Original (Lotado)', 'Novo Hor√°rio Sugerido', 'Aceito em']];
+  const wsData = [['Local de Embarque', 'Nome Completo do Evento', 'Data Festival', 'Hor&#xE1;rio Original (Lotado)', 'Novo Hor&#xE1;rio Sugerido', 'Aceito em']];
   for (const a of aceitos) {
     wsData.push([a.local, a.eventName || a.local, a.date, a.horarioOriginal, a.novoHorario, new Date(a.aceitoEm).toLocaleString('pt-BR')]);
   }
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!cols'] = [{wch:32},{wch:48},{wch:14},{wch:22},{wch:20},{wch:20}];
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Novos Hor√°rios');
+  XLSX.utils.book_append_sheet(wb, ws, 'Novos Hor&#xE1;rios');
   XLSX.writeFile(wb, 'novos-horarios-rock-in-rio-' + new Date().toISOString().slice(0,10) + '.xlsx');
 }
 
@@ -1979,14 +1979,14 @@ function getLocalEmbarque(s) {
     return s.productName.replace(PREFIX_EMBAR, '').trim();
   if (s.eventName && s.eventName.startsWith(PREFIX_EVENT))
     return s.eventName.replace(PREFIX_EVENT, '').trim();
-  return s.local || s.eventName || '‚Äî';
+  return s.local || s.eventName || '&#x2014;';
 }
 
 function render(rawShows) {
   // Build set of all existing slots keyed by "localEmbarque|date|time"
   const existingSlots = new Set(rawShows.map(s => \`\${getLocalEmbarque(s)}|\${s.date}|\${s.time}\`));
 
-  // Build neighbor map: "localEmbarque|date" ‚Üí sorted array of {time, tks}
+  // Build neighbor map: "localEmbarque|date" &#x2192; sorted array of {time, tks}
   const neighborMap = {};
   for (const s of rawShows) {
     if (!s.date || !s.time) continue;
@@ -2019,7 +2019,7 @@ function render(rawShows) {
     return !aceitosSet.has(key) && !negadosSet.has(key);
   });
 
-  // Sort: localEmbarque (A‚ÜíZ) ‚Üí date ‚Üí time
+  // Sort: localEmbarque (A&#x2192;Z) &#x2192; date &#x2192; time
   lotados.sort((a, b) => getLocalEmbarque(a).localeCompare(getLocalEmbarque(b), 'pt-BR') || (a.date||'').localeCompare(b.date||'') || (a.time||'').localeCompare(b.time||''));
 
   let html = '';
@@ -2044,19 +2044,19 @@ function render(rawShows) {
   </div>\`;
 
   if (lotados.length === 0) {
-    html += '<div class="no-data-msg">üéâ Nenhum evento com lota√ß√£o esgotada no momento.</div>';
+    html += '<div class="no-data-msg">&#x1F389; Nenhum evento com lota&#xE7;&#xE3;o esgotada no momento.</div>';
     document.getElementById('app').innerHTML = html;
     document.getElementById('loading').classList.add('hidden');
     return;
   }
 
   // Sold-out table
-  html += \`<div class="section-title">üö® Hor√°rios Esgotados</div>
-  <div class="section-sub">Eventos com \${CAP} de \${CAP} ingressos vendidos ‚Äî capacidade m√°xima atingida</div>
+  html += \`<div class="section-title">&#x1F6A8; Hor&#xE1;rios Esgotados</div>
+  <div class="section-sub">Eventos com \${CAP} de \${CAP} ingressos vendidos &#x2014; capacidade m&#xE1;xima atingida</div>
   <div style="overflow-x:auto">
   <table class="lotados-table">
     <thead><tr>
-      <th>Local de Embarque</th><th>Data</th><th>Hor√°rio Lotado</th><th>Vendidos</th><th>Hor√°rios Vizinhos</th><th>Novo Hor√°rio Sugerido</th><th>A√ß√£o</th>
+      <th>Local de Embarque</th><th>Data</th><th>Hor&#xE1;rio Lotado</th><th>Vendidos</th><th>Hor&#xE1;rios Vizinhos</th><th>Novo Hor&#xE1;rio Sugerido</th><th>A&#xE7;&#xE3;o</th>
     </tr></thead><tbody>\`;
 
   lotados.forEach((s, i) => {
@@ -2068,11 +2068,11 @@ function render(rawShows) {
     const prev = nIdx > 0 ? neighbors[nIdx - 1] : null;
     const next = nIdx >= 0 && nIdx < neighbors.length - 1 ? neighbors[nIdx + 1] : null;
     const prevHtml = prev
-      ? \`<div style="font-size:11px;white-space:nowrap">‚Üê \${prev.time} &nbsp;<b style="color:var(--text)">\${prev.tks}</b> <span style="color:var(--muted)">ing.</span></div>\`
-      : \`<div style="color:#555;font-size:11px">‚Üê sem anterior</div>\`;
+      ? \`<div style="font-size:11px;white-space:nowrap">&#x2190; \${prev.time} &nbsp;<b style="color:var(--text)">\${prev.tks}</b> <span style="color:var(--muted)">ing.</span></div>\`
+      : \`<div style="color:#555;font-size:11px">&#x2190; sem anterior</div>\`;
     const nextHtml = next
-      ? \`<div style="font-size:11px;white-space:nowrap">‚Üí \${next.time} &nbsp;<b style="color:var(--text)">\${next.tks}</b> <span style="color:var(--muted)">ing.</span></div>\`
-      : \`<div style="color:#555;font-size:11px">‚Üí sem pr√≥ximo</div>\`;
+      ? \`<div style="font-size:11px;white-space:nowrap">&#x2192; \${next.time} &nbsp;<b style="color:var(--text)">\${next.tks}</b> <span style="color:var(--muted)">ing.</span></div>\`
+      : \`<div style="color:#555;font-size:11px">&#x2192; sem pr&#xF3;ximo</div>\`;
     const { time: novoH, mins } = suggestTime(localEmbarque, s.date, s.time);
     const btnId = 'btn-' + i;
     const jaAceito = isAceito(localEmbarque, s.date, novoH);
@@ -2087,12 +2087,12 @@ function render(rawShows) {
       <td><span class="tag-time">\${s.time}</span> <span class="badge-lotado">Lotado</span></td>
       <td style="color:var(--accent);font-weight:800">\${s.tks}/\${CAP}</td>
       <td>\${prevHtml}\${nextHtml}</td>
-      <td><span class="tag-new">üïê \${novoH}</span> <span style="font-size:10px;color:var(--muted)">\${offsetLabel}</span></td>
+      <td><span class="tag-new">&#x1F550; \${novoH}</span> <span style="font-size:10px;color:var(--muted)">\${offsetLabel}</span></td>
       <td style="display:flex;gap:6px;align-items:center">
         <button class="btn-aceitar\${jaAceito?' aceito':''}" id="\${btnId}" \${jaAceito?'disabled':''}\
           onclick="aceitar('\${localEsc}','\${eventEsc}','\${s.date}','\${s.time}','\${novoH}','\${btnId}')">\
-          \${jaAceito?'‚úì Aceito':'Aceitar'}</button>
-        <button class="btn-negar" onclick="negar('\${localEsc}','\${s.date}','\${s.time}','\${rowId}')">‚úï Negar</button>
+          \${jaAceito?'&#x2713; Aceito':'Aceitar'}</button>
+        <button class="btn-negar" onclick="negar('\${localEsc}','\${s.date}','\${s.time}','\${rowId}')">&#x2715; Negar</button>
       </td>
     </tr>\`;
   });
@@ -2102,10 +2102,10 @@ function render(rawShows) {
   // Accepted section
   html += \`<div class="aceitos-section">
     <div class="aceitos-header">
-      <div class="aceitos-title">‚úÖ Novos Hor√°rios Aceitos &nbsp;<span id="aceitos-count" style="background:#2ec27e;color:#000;border-radius:12px;padding:1px 10px;font-size:13px">0</span></div>
+      <div class="aceitos-title">&#x2705; Novos Hor&#xE1;rios Aceitos &nbsp;<span id="aceitos-count" style="background:#2ec27e;color:#000;border-radius:12px;padding:1px 10px;font-size:13px">0</span></div>
       <div class="aceitos-actions">
-        <button class="btn-export" onclick="exportarXLS()">üì• Exportar XLS</button>
-        <button class="btn-limpar" onclick="limparAceitos()">üóëÔ∏è Limpar Lista</button>
+        <button class="btn-export" onclick="exportarXLS()">&#x1F4E5; Exportar XLS</button>
+        <button class="btn-limpar" onclick="limparAceitos()">&#x1F5D1;&#xFE0F; Limpar Lista</button>
       </div>
     </div>
     <div id="aceitos-container"></div>
@@ -2123,7 +2123,7 @@ async function loadData() {
     if (!json.data) throw new Error('Sem dados');
     render(json.data.rawShows || []);
     document.getElementById('status-dot').className = 'status-dot green';
-    document.getElementById('status-text').textContent = 'Dados ao vivo ¬∑ ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '‚Äî');
+    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '&#x2014;');
   } catch(e) {
     document.getElementById('status-dot').className = 'status-dot red';
     document.getElementById('status-text').textContent = 'Erro: ' + e.message;
@@ -2135,15 +2135,15 @@ document.addEventListener('DOMContentLoaded', loadData);
 </body></html>`;
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
-// AN√ÅLISE POR LOCAL PAGE
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
+// AN&#xC1;LISE POR LOCAL PAGE
+// ---------------------------------------------
 function getLocaisHTML(username) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>An√°lise por Local ‚Äî Rock in Rio 2026</title>
+<title>An&#xE1;lise por Local &#x2014; Rock in Rio 2026</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>
 <style>
 ${SHARED_CSS_VARS}
@@ -2191,13 +2191,13 @@ ${SHARED_HEADER_CSS}
 <div id="loading"><div class="spinner2"></div><span style="color:var(--muted)">Carregando dados...</span></div>
 <header>
   <div class="header-left">
-    <a href="/" style="text-decoration:none;border:1px solid var(--border);padding:7px 14px;border-radius:8px;color:var(--text);font-size:13px;font-weight:600">‚Üê Voltar</a>
+    <a href="/" style="text-decoration:none;border:1px solid var(--border);padding:7px 14px;border-radius:8px;color:var(--text);font-size:13px;font-weight:600">&#x2190; Voltar</a>
     <div class="logo-badge">Rock in Rio 2026</div>
-    <div><h1>An√°lise por Local</h1><p>Receita, ingressos, hor√°rios e lota√ß√£o por ponto de embarque</p></div>
+    <div><h1>An&#xE1;lise por Local</h1><p>Receita, ingressos, hor&#xE1;rios e lota&#xE7;&#xE3;o por ponto de embarque</p></div>
   </div>
   <div class="header-right">
     <span id="last-upd" style="font-size:11px;color:var(--muted)"></span>
-    <button class="btn btn-primary" onclick="loadData()">‚Üª Atualizar</button>
+    <button class="btn btn-primary" onclick="loadData()">&#x21BB; Atualizar</button>
     <form method="POST" action="/logout" style="margin:0"><button class="btn btn-secondary" type="submit">Sair</button></form>
   </div>
 </header>
@@ -2205,35 +2205,35 @@ ${SHARED_HEADER_CSS}
 <div class="content" id="content" style="display:none">
 
   <div class="kpis">
-    <div class="kpi gold"><div class="kpi-label">üí∞ Receita Total</div><div class="kpi-val" id="k-receita">‚Äî</div><div class="kpi-sub">em ingressos vendidos</div></div>
-    <div class="kpi red"><div class="kpi-label">üé´ Ingressos Vendidos</div><div class="kpi-val" id="k-tks">‚Äî</div><div class="kpi-sub" id="k-tks-sub">locais ativos</div></div>
-    <div class="kpi blue"><div class="kpi-label">üìç Pontos de Embarque</div><div class="kpi-val" id="k-locais">‚Äî</div><div class="kpi-sub" id="k-locais-sub">com vendas</div></div>
-    <div class="kpi teal"><div class="kpi-label">üí≥ Ticket M√©dio</div><div class="kpi-val" id="k-medio">‚Äî</div><div class="kpi-sub">por ingresso</div></div>
-    <div class="kpi green"><div class="kpi-label">üèÜ Top Local</div><div class="kpi-val" id="k-top" style="font-size:14px;line-height:1.3">‚Äî</div><div class="kpi-sub" id="k-top-sub"></div></div>
-    <div class="kpi orange"><div class="kpi-label">‚ùå Cancelados</div><div class="kpi-val" id="k-can">‚Äî</div><div class="kpi-sub">ingressos cancelados</div></div>
+    <div class="kpi gold"><div class="kpi-label">&#x1F4B0; Receita Total</div><div class="kpi-val" id="k-receita">&#x2014;</div><div class="kpi-sub">em ingressos vendidos</div></div>
+    <div class="kpi red"><div class="kpi-label">&#x1F3AB; Ingressos Vendidos</div><div class="kpi-val" id="k-tks">&#x2014;</div><div class="kpi-sub" id="k-tks-sub">locais ativos</div></div>
+    <div class="kpi blue"><div class="kpi-label">&#x1F4CD; Pontos de Embarque</div><div class="kpi-val" id="k-locais">&#x2014;</div><div class="kpi-sub" id="k-locais-sub">com vendas</div></div>
+    <div class="kpi teal"><div class="kpi-label">&#x1F4B3; Ticket M&#xE9;dio</div><div class="kpi-val" id="k-medio">&#x2014;</div><div class="kpi-sub">por ingresso</div></div>
+    <div class="kpi green"><div class="kpi-label">&#x1F3C6; Top Local</div><div class="kpi-val" id="k-top" style="font-size:14px;line-height:1.3">&#x2014;</div><div class="kpi-sub" id="k-top-sub"></div></div>
+    <div class="kpi orange"><div class="kpi-label">&#x274C; Cancelados</div><div class="kpi-val" id="k-can">&#x2014;</div><div class="kpi-sub">ingressos cancelados</div></div>
   </div>
 
   <div class="charts-row">
     <div class="section">
-      <div class="section-title">üèÖ Top 15 Locais ‚Äî Receita (R$)</div>
+      <div class="section-title">&#x1F3C5; Top 15 Locais &#x2014; Receita (R$)</div>
       <div class="chart-wrap-tall"><canvas id="chart-receita"></canvas></div>
     </div>
     <div class="section">
-      <div class="section-title">üèÖ Top 15 Locais ‚Äî Ingressos Vendidos</div>
+      <div class="section-title">&#x1F3C5; Top 15 Locais &#x2014; Ingressos Vendidos</div>
       <div class="chart-wrap-tall"><canvas id="chart-ingressos"></canvas></div>
     </div>
   </div>
 
   <div class="charts-row">
     <div class="section">
-      <div class="section-title">üìÖ Vendas por Dia (Data da Compra)</div>
+      <div class="section-title">&#x1F4C5; Vendas por Dia (Data da Compra)</div>
       <div class="chart-wrap"><canvas id="chart-timeline"></canvas></div>
     </div>
     <div class="section">
-      <div class="section-title">üïê Ranking de Hor√°rios de Partida</div>
+      <div class="section-title">&#x1F550; Ranking de Hor&#xE1;rios de Partida</div>
       <div style="max-height:320px;overflow-y:auto">
         <table class="rank-table" id="tbl-horarios">
-          <thead><tr><th>#</th><th>Hor√°rio</th><th>Ingressos</th><th style="width:120px">Barra</th></tr></thead>
+          <thead><tr><th>#</th><th>Hor&#xE1;rio</th><th>Ingressos</th><th style="width:120px">Barra</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -2241,14 +2241,14 @@ ${SHARED_HEADER_CSS}
   </div>
 
   <div class="section">
-    <div class="section-title">üìä Lota√ß√£o por Data de Show ‚Äî Ingressos por Ponto de Embarque</div>
+    <div class="section-title">&#x1F4CA; Lota&#xE7;&#xE3;o por Data de Show &#x2014; Ingressos por Ponto de Embarque</div>
     <div class="table-scroll" id="tbl-lotacao-wrap" style="max-height:500px;overflow-y:auto"></div>
   </div>
 
 </div>
 <script>
 const FEST_DATES  = ['2026-09-04','2026-09-05','2026-09-06','2026-09-07','2026-09-11','2026-09-12','2026-09-13'];
-const FEST_LABELS = ['04/Set (Sex)','05/Set (S√°b)','06/Set (Dom)','07/Set (Seg)','11/Set (Sex)','12/Set (S√°b)','13/Set (Dom)'];
+const FEST_LABELS = ['04/Set (Sex)','05/Set (S&#xE1;b)','06/Set (Dom)','07/Set (Seg)','11/Set (Sex)','12/Set (S&#xE1;b)','13/Set (Dom)'];
 const PREFIX1 = 'Primeira Classe Rock in Rio - ';
 const PREFIX2 = 'Primeira Classe Rock in Rio | ';
 const fmt  = n => Number(n||0).toLocaleString('pt-BR');
@@ -2259,7 +2259,7 @@ let charts = {};
 function mk(id,cfg){ if(charts[id])charts[id].destroy(); const c=document.getElementById(id); if(c)charts[id]=new Chart(c,cfg); }
 
 function normLocal(s){
-  if(!s) return '‚Äî';
+  if(!s) return '&#x2014;';
   if(s.startsWith(PREFIX1)) return s.slice(PREFIX1.length);
   if(s.startsWith(PREFIX2)){ const r=s.slice(PREFIX2.length); const p=r.indexOf(' | '); return (p!==-1?r.slice(0,p):r).trim(); }
   return s;
@@ -2273,7 +2273,7 @@ function render(d){
   const locMap = {};
   for(const r of raw){
     const loc = normLocal(r.local||r.eventName||'');
-    if(!loc||loc==='‚Äî') continue;
+    if(!loc||loc==='&#x2014;') continue;
     if(!locMap[loc]) locMap[loc]={receita:0,tks:0,cancelled:0};
     locMap[loc].receita   += r.subtotal||0;
     locMap[loc].tks       += r.tks||0;
@@ -2285,33 +2285,33 @@ function render(d){
   const totRec = byTks.reduce((s,[,v])=>s+v.receita,0);
   const totCan = byTks.reduce((s,[,v])=>s+v.cancelled,0);
   const active = byTks.filter(([,v])=>v.tks>0);
-  const top    = active[0]||['‚Äî',{tks:0,receita:0}];
+  const top    = active[0]||['&#x2014;',{tks:0,receita:0}];
 
   document.getElementById('k-receita').textContent = fmtR(totRec);
   document.getElementById('k-tks').textContent     = fmt(totTks);
   document.getElementById('k-tks-sub').textContent = active.length+' locais ativos';
   document.getElementById('k-locais').textContent  = byTks.length;
   document.getElementById('k-locais-sub').textContent = active.length+' com vendas';
-  document.getElementById('k-medio').textContent   = totTks>0?fmtR(totRec/totTks):'‚Äî';
+  document.getElementById('k-medio').textContent   = totTks>0?fmtR(totRec/totTks):'&#x2014;';
   document.getElementById('k-top').textContent     = top[0];
-  document.getElementById('k-top-sub').textContent = fmt(top[1].tks)+' ing ¬∑ '+fmtR(top[1].receita);
+  document.getElementById('k-top-sub').textContent = fmt(top[1].tks)+' ing &#xB7; '+fmtR(top[1].receita);
   document.getElementById('k-can').textContent     = fmt(totCan);
 
   // Top 15 receita
   const t15r = byRec.slice(0,15);
-  mk('chart-receita',{type:'bar',data:{labels:t15r.map(([l])=>l.length>20?l.slice(0,19)+'‚Ä¶':l),datasets:[{label:'Receita',data:t15r.map(([,v])=>v.receita),backgroundColor:COLORS.slice(0,15),borderRadius:4}]},
+  mk('chart-receita',{type:'bar',data:{labels:t15r.map(([l])=>l.length>20?l.slice(0,19)+'&#x2026;':l),datasets:[{label:'Receita',data:t15r.map(([,v])=>v.receita),backgroundColor:COLORS.slice(0,15),borderRadius:4}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtR(c.raw)}}},scales:{x:{ticks:{...axO,callback:v=>fmtR(v)},grid:{color:'#252d3d'}},y:{ticks:{...axO,font:{size:11}},grid:{color:'#252d3d'}}}}});
 
   // Top 15 ingressos
   const t15i = byTks.slice(0,15);
-  mk('chart-ingressos',{type:'bar',data:{labels:t15i.map(([l])=>l.length>20?l.slice(0,19)+'‚Ä¶':l),datasets:[{label:'Ingressos',data:t15i.map(([,v])=>v.tks),backgroundColor:COLORS.slice(0,15),borderRadius:4}]},
+  mk('chart-ingressos',{type:'bar',data:{labels:t15i.map(([l])=>l.length>20?l.slice(0,19)+'&#x2026;':l),datasets:[{label:'Ingressos',data:t15i.map(([,v])=>v.tks),backgroundColor:COLORS.slice(0,15),borderRadius:4}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}},scales:{x:{ticks:{...axO,callback:v=>fmt(v)},grid:{color:'#252d3d'}},y:{ticks:{...axO,font:{size:11}},grid:{color:'#252d3d'}}}}});
 
   // Timeline
   mk('chart-timeline',{type:'line',data:{labels:sbd.map(r=>r.date.slice(5)),datasets:[{label:'Ingressos',data:sbd.map(r=>r.tks),borderColor:'#e8871a',backgroundColor:'rgba(232,135,26,.12)',fill:true,tension:.35,pointRadius:2,pointBackgroundColor:'#e8871a'}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' ingressos'}}},scales:{x:{ticks:{...axO,maxTicksLimit:10},grid:{color:'#252d3d'}},y:{ticks:{...axO,callback:v=>fmt(v)},grid:{color:'#252d3d'}}}}});
 
-  // Hor√°rios de partida
+  // Hor&#xE1;rios de partida
   const horMap = {};
   for(const r of raw){ if(r.time) horMap[r.time]=(horMap[r.time]||0)+(r.tks||0); }
   const horArr = Object.entries(horMap).sort((a,b)=>b[1]-a[1]);
@@ -2320,11 +2320,11 @@ function render(d){
     \`<tr><td style="color:var(--muted);width:28px">\${i+1}</td><td style="font-weight:700;font-size:14px">\${t}</td><td class="num">\${fmt(n)}</td><td><div class="bar-cell"><div class="bar-inline" style="width:\${Math.max(4,Math.round(n/maxH*120))}px"></div><span style="font-size:11px;color:var(--muted)">\${Math.round(n/maxH*100)}%</span></div></td></tr>\`
   ).join('');
 
-  // Lota√ß√£o matrix
+  // Lota&#xE7;&#xE3;o matrix
   const matMap = {};
   for(const r of raw){
     const loc = normLocal(r.local||r.eventName||'');
-    if(!loc||loc==='‚Äî') continue;
+    if(!loc||loc==='&#x2014;') continue;
     const dt = r.date||'';
     if(FEST_DATES.includes(dt)){
       if(!matMap[loc]) matMap[loc]={};
@@ -2345,7 +2345,7 @@ function render(d){
     const tot = FEST_DATES.reduce((s,d)=>s+(m[d]||0),0);
     return \`<tr><td>\${loc}</td>\${FEST_DATES.map(d=>m[d]
       ?\`<td class="num">\${fmt(m[d])}</td>\`
-      :\`<td class="zero">‚Äî</td>\`).join('')}<td class="num" style="color:var(--gold)">\${fmt(tot)}</td></tr>\`;
+      :\`<td class="zero">&#x2014;</td>\`).join('')}<td class="num" style="color:var(--gold)">\${fmt(tot)}</td></tr>\`;
   }).join('');
   const totRow = \`<tr class="total-row"><td>TOTAL</td>\${FEST_DATES.map(d=>\`<td>\${fmt(colTot[d]||0)}</td>\`).join('')}<td>\${fmt(grandTot)}</td></tr>\`;
   document.getElementById('tbl-lotacao-wrap').innerHTML = \`<table class="data-table"><thead>\${hdr}</thead><tbody>\${bodyRows}\${totRow}</tbody></table>\`;
@@ -2360,8 +2360,8 @@ async function loadData(){
     document.getElementById('loading').style.display='none';
     document.getElementById('content').style.display='block';
     document.getElementById('status-dot').className='status-dot green';
-    const ts = json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '‚Äî';
-    document.getElementById('status-text').textContent = 'Dados ao vivo ¬∑ '+ts;
+    const ts = json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '&#x2014;';
+    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; '+ts;
     document.getElementById('last-upd').textContent    = 'Atualizado: '+ts;
   } catch(e){
     document.getElementById('loading').style.display='none';
@@ -2375,15 +2375,15 @@ document.addEventListener('DOMContentLoaded', loadData);
 </body></html>`;
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // VELOCIDADE DE VENDAS PAGE
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 function getVelocidadeHTML(username) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Velocidade de Vendas ‚Äî Rock in Rio 2026</title>
+<title>Velocidade de Vendas &#x2014; Rock in Rio 2026</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -2416,7 +2416,7 @@ ${SHARED_HEADER_CSS}
   .trend-up{color:var(--green)} .trend-down{color:var(--accent)} .trend-flat{color:var(--gold)}
   .accel-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;margin-top:6px}
   .accel-pos{background:#0d2a1a;color:var(--green)} .accel-neg{background:#2a0d0d;color:var(--accent)} .accel-flat{background:#2a2a0d;color:var(--gold)}
-  /* ‚îÄ‚îÄ COMPARATIVO TABLE ‚îÄ‚îÄ */
+  /* -- COMPARATIVO TABLE -- */
   .comp-wrap{overflow-x:auto;max-height:520px;overflow-y:auto}
   .comp-table{border-collapse:collapse;min-width:100%;font-size:12px}
   .comp-table th{position:sticky;top:0;z-index:2;background:var(--surface2);padding:8px 12px;text-align:right;
@@ -2458,12 +2458,12 @@ ${SHARED_HEADER_CSS}
   <div class="header-left">
     <div class="logo-badge">Rock in Rio 2026</div>
     <div>
-      <h1>üöÄ Velocidade de Vendas</h1>
-      <p id="header-sub">Ritmo di√°rio √ó metas ‚Äî atualizado em ‚Äî</p>
+      <h1>&#x1F680; Velocidade de Vendas</h1>
+      <p id="header-sub">Ritmo di&#xE1;rio &#xD7; metas &#x2014; atualizado em &#x2014;</p>
     </div>
   </div>
   <div class="header-right">
-    <a href="/" class="btn btn-back">‚Üê Painel</a>
+    <a href="/" class="btn btn-back">&#x2190; Painel</a>
     <form method="POST" action="/logout" style="margin:0">
       <button class="btn btn-secondary" type="submit">Sair</button>
     </form>
@@ -2479,67 +2479,67 @@ ${SHARED_HEADER_CSS}
 
   <!-- KPIs -->
   <div class="kpis">
-    <div class="kpi green"><div class="kpi-icon">üéüÔ∏è</div><div class="kpi-label">Total Vendidos</div><div class="kpi-val" id="k-total">‚Äî</div><div class="kpi-sub" id="k-days">em ‚Äî dias</div></div>
-    <div class="kpi blue"><div class="kpi-icon">üìà</div><div class="kpi-label">M√©dia / Dia</div><div class="kpi-val" id="k-avg">‚Äî</div><div class="kpi-sub">hist√≥rico total</div></div>
-    <div class="kpi teal"><div class="kpi-icon">‚ö°</div><div class="kpi-label">Ritmo Atual</div><div class="kpi-val" id="k-avg7">‚Äî</div><div class="kpi-sub" id="k-accel"></div></div>
-    <div class="kpi gold"><div class="kpi-icon">üèÜ</div><div class="kpi-label">Melhor Dia</div><div class="kpi-val" id="k-best">‚Äî</div><div class="kpi-sub" id="k-best-date"></div></div>
-    <div class="kpi purple"><div class="kpi-icon">üìÖ</div><div class="kpi-label">Dias Restantes</div><div class="kpi-val" id="k-days-left">‚Äî</div><div class="kpi-sub">at√© 04/Set/2026</div></div>
+    <div class="kpi green"><div class="kpi-icon">&#x1F39F;&#xFE0F;</div><div class="kpi-label">Total Vendidos</div><div class="kpi-val" id="k-total">&#x2014;</div><div class="kpi-sub" id="k-days">em &#x2014; dias</div></div>
+    <div class="kpi blue"><div class="kpi-icon">&#x1F4C8;</div><div class="kpi-label">M&#xE9;dia / Dia</div><div class="kpi-val" id="k-avg">&#x2014;</div><div class="kpi-sub">hist&#xF3;rico total</div></div>
+    <div class="kpi teal"><div class="kpi-icon">&#x26A1;</div><div class="kpi-label">Ritmo Atual</div><div class="kpi-val" id="k-avg7">&#x2014;</div><div class="kpi-sub" id="k-accel"></div></div>
+    <div class="kpi gold"><div class="kpi-icon">&#x1F3C6;</div><div class="kpi-label">Melhor Dia</div><div class="kpi-val" id="k-best">&#x2014;</div><div class="kpi-sub" id="k-best-date"></div></div>
+    <div class="kpi purple"><div class="kpi-icon">&#x1F4C5;</div><div class="kpi-label">Dias Restantes</div><div class="kpi-val" id="k-days-left">&#x2014;</div><div class="kpi-sub">at&#xE9; 04/Set/2026</div></div>
   </div>
 
-  <!-- Main chart: vendas di√°rias + m√©dia m√≥vel -->
+  <!-- Main chart: vendas di&#xE1;rias + m&#xE9;dia m&#xF3;vel -->
   <div class="section">
-    <div class="section-title">üìä Vendas por Dia + M√©dia M√≥vel (7 dias)</div>
+    <div class="section-title">&#x1F4CA; Vendas por Dia + M&#xE9;dia M&#xF3;vel (7 dias)</div>
     <div class="charts-row">
       <div class="chart-wrap"><canvas id="chartDaily"></canvas></div>
       <div>
-        <div class="section-title" style="font-size:12px;color:var(--muted)">üìÜ Vendas por Semana</div>
+        <div class="section-title" style="font-size:12px;color:var(--muted)">&#x1F4C6; Vendas por Semana</div>
         <div class="chart-wrap-sm"><canvas id="chartWeekly"></canvas></div>
       </div>
     </div>
   </div>
 
-  <!-- Proje√ß√£o -->
+  <!-- Proje&#xE7;&#xE3;o -->
   <div class="section">
-    <div class="section-title">üîÆ Proje√ß√£o at√© o Festival (04/Set/2026)</div>
+    <div class="section-title">&#x1F52E; Proje&#xE7;&#xE3;o at&#xE9; o Festival (04/Set/2026)</div>
 
     <!-- Linha de status -->
     <div style="display:flex;align-items:center;gap:20px;margin-bottom:16px;flex-wrap:wrap">
-      <div style="font-size:13px;color:var(--muted)">Vendidos hoje: <strong style="color:var(--green);font-size:16px" id="proj-atual">‚Äî</strong></div>
-      <div style="font-size:13px;color:var(--muted)">Dias restantes: <strong style="color:var(--text)" id="proj-days-rem">‚Äî</strong></div>
-      <div style="font-size:13px;color:var(--muted)">Ritmo 7 dias: <strong style="color:var(--blue)" id="proj-rate">‚Äî</strong>/dia</div>
+      <div style="font-size:13px;color:var(--muted)">Vendidos hoje: <strong style="color:var(--green);font-size:16px" id="proj-atual">&#x2014;</strong></div>
+      <div style="font-size:13px;color:var(--muted)">Dias restantes: <strong style="color:var(--text)" id="proj-days-rem">&#x2014;</strong></div>
+      <div style="font-size:13px;color:var(--muted)">Ritmo 7 dias: <strong style="color:var(--blue)" id="proj-rate">&#x2014;</strong>/dia</div>
     </div>
 
-    <!-- Dois cen√°rios lado a lado -->
+    <!-- Dois cen&#xE1;rios lado a lado -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
-      <!-- Cen√°rio 1: Ritmo Constante -->
+      <!-- Cen&#xE1;rio 1: Ritmo Constante -->
       <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid #5b8dee;border-radius:10px;padding:18px">
-        <div style="font-size:10px;font-weight:700;color:#5b8dee;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">üìä Ritmo Constante</div>
-        <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5">M√©dia dos √∫ltimos 7 dias aplicada uniformemente at√© o festival</p>
+        <div style="font-size:10px;font-weight:700;color:#5b8dee;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">&#x1F4CA; Ritmo Constante</div>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5">M&#xE9;dia dos &#xFA;ltimos 7 dias aplicada uniformemente at&#xE9; o festival</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Adicional</div>
-            <div style="font-size:24px;font-weight:800;color:#5b8dee" id="proj-add">‚Äî</div>
+            <div style="font-size:24px;font-weight:800;color:#5b8dee" id="proj-add">&#x2014;</div>
           </div>
           <div>
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Total</div>
-            <div style="font-size:24px;font-weight:800;color:#748ffc" id="proj-total">‚Äî</div>
+            <div style="font-size:24px;font-weight:800;color:#748ffc" id="proj-total">&#x2014;</div>
           </div>
         </div>
       </div>
 
-      <!-- Cen√°rio 2: Curva Hist√≥rica -->
+      <!-- Cen&#xE1;rio 2: Curva Hist&#xF3;rica -->
       <div style="background:var(--surface2);border:1px solid var(--border);border-top:3px solid #2ec27e;border-radius:10px;padding:18px">
-        <div style="font-size:10px;font-weight:700;color:#2ec27e;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">üìà Curva Hist√≥rica</div>
-        <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5">M√©dia de <span id="hist-years-count">‚Äî</span> edi√ß√µes: <strong id="hist-pct-sold" style="color:var(--text)">‚Äî</strong>% vendido at√© este ponto ‚Äî inclui acelera√ß√£o final</p>
+        <div style="font-size:10px;font-weight:700;color:#2ec27e;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">&#x1F4C8; Curva Hist&#xF3;rica</div>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5">M&#xE9;dia de <span id="hist-years-count">&#x2014;</span> edi&#xE7;&#xF5;es: <strong id="hist-pct-sold" style="color:var(--text)">&#x2014;</strong>% vendido at&#xE9; este ponto &#x2014; inclui acelera&#xE7;&#xE3;o final</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Adicional</div>
-            <div style="font-size:24px;font-weight:800;color:#2ec27e" id="proj-hist-add">‚Äî</div>
+            <div style="font-size:24px;font-weight:800;color:#2ec27e" id="proj-hist-add">&#x2014;</div>
           </div>
           <div>
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Total</div>
-            <div style="font-size:24px;font-weight:800;color:#ffd700" id="proj-hist-total">‚Äî</div>
+            <div style="font-size:24px;font-weight:800;color:#ffd700" id="proj-hist-total">&#x2014;</div>
           </div>
         </div>
         <div id="hist-uplift" style="margin-top:10px;font-size:11px;color:var(--muted)"></div>
@@ -2547,37 +2547,37 @@ ${SHARED_HEADER_CSS}
 
     </div>
 
-    <!-- Detalhe por edi√ß√£o -->
+    <!-- Detalhe por edi&#xE7;&#xE3;o -->
     <div id="hist-detail" style="margin-top:12px;font-size:11px;color:var(--muted);display:none">
-      <span style="font-weight:700;color:var(--text)">% vendido neste ponto por edi√ß√£o: </span>
+      <span style="font-weight:700;color:var(--text)">% vendido neste ponto por edi&#xE7;&#xE3;o: </span>
       <span id="hist-detail-text"></span>
     </div>
 
-    <!-- Card destaque: Total at√© fim do festival -->
+    <!-- Card destaque: Total at&#xE9; fim do festival -->
     <div id="proj-festival-card" style="display:none;margin-top:16px;background:linear-gradient(135deg,#1a0a2e 0%,#0d1f2d 100%);border:1px solid #5b3d8c;border-radius:12px;padding:20px 24px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
         <div>
-          <div style="font-size:10px;font-weight:700;color:#b77ef7;text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px">üé™ Proje√ß√£o Total ‚Äî Fim do Festival (13/Set/2026)</div>
-          <div style="font-size:11px;color:#8a7aa0;margin-bottom:4px" id="proj-festival-sub">Curva hist√≥rica √ó fator p√≥s-in√≠cio m√©dio de ‚Äî edi√ß√µes</div>
-          <div style="font-size:11px;color:#8a7aa0">Inclui acelera√ß√£o pr√©-festival <strong style="color:#b77ef7">+</strong> vendas durante os 9 dias de shows</div>
+          <div style="font-size:10px;font-weight:700;color:#b77ef7;text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px">&#x1F3AA; Proje&#xE7;&#xE3;o Total &#x2014; Fim do Festival (13/Set/2026)</div>
+          <div style="font-size:11px;color:#8a7aa0;margin-bottom:4px" id="proj-festival-sub">Curva hist&#xF3;rica &#xD7; fator p&#xF3;s-in&#xED;cio m&#xE9;dio de &#x2014; edi&#xE7;&#xF5;es</div>
+          <div style="font-size:11px;color:#8a7aa0">Inclui acelera&#xE7;&#xE3;o pr&#xE9;-festival <strong style="color:#b77ef7">+</strong> vendas durante os 9 dias de shows</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:11px;color:#8a7aa0;margin-bottom:2px">Total projetado at√© 13/Set</div>
-          <div style="font-size:38px;font-weight:900;color:#b77ef7;line-height:1" id="proj-festival-total">‚Äî</div>
-          <div style="font-size:12px;color:#8a7aa0;margin-top:4px">ingressos ¬∑ <span id="proj-festival-add" style="color:#ffd700;font-weight:700">‚Äî</span> ainda a vender</div>
+          <div style="font-size:11px;color:#8a7aa0;margin-bottom:2px">Total projetado at&#xE9; 13/Set</div>
+          <div style="font-size:38px;font-weight:900;color:#b77ef7;line-height:1" id="proj-festival-total">&#x2014;</div>
+          <div style="font-size:12px;color:#8a7aa0;margin-top:4px">ingressos &#xB7; <span id="proj-festival-add" style="color:#ffd700;font-weight:700">&#x2014;</span> ainda a vender</div>
           <div style="font-size:11px;color:#5b8dee;margin-top:6px" id="proj-festival-vs2024"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Comparativo Hist√≥rico -->
+  <!-- Comparativo Hist&#xF3;rico -->
   <div class="section" id="section-comp">
     <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
-      <span>üìã Comparativo Hist√≥rico ‚Äî Dia a Dia por Edi√ß√£o</span>
-      <button onclick="exportComparativo()" class="btn btn-secondary" style="font-size:11px;padding:6px 12px">‚Üì XLS Comparativo</button>
+      <span>&#x1F4CB; Comparativo Hist&#xF3;rico &#x2014; Dia a Dia por Edi&#xE7;&#xE3;o</span>
+      <button onclick="exportComparativo()" class="btn btn-secondary" style="font-size:11px;padding:6px 12px">&#x2193; XLS Comparativo</button>
     </div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Ingressos acumulados por dias antes do festival (D-0 = dia do 1¬∫ show). Linha verde = hoje.</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Ingressos acumulados por dias antes do festival (D-0 = dia do 1&#xBA; show). Linha verde = hoje.</p>
     <div class="comp-wrap" id="comp-table-wrap"><div style="color:var(--muted);padding:20px;text-align:center">Carregando...</div></div>
   </div>
 
@@ -2585,7 +2585,7 @@ ${SHARED_HEADER_CSS}
 
 <script>
 function fmt(n){ return (n||0).toLocaleString('pt-BR'); }
-function fmtDate(s){ if(!s)return'‚Äî'; const [y,m,d]=s.split('-'); return d+'/'+m+'/'+y; }
+function fmtDate(s){ if(!s)return'&#x2014;'; const [y,m,d]=s.split('-'); return d+'/'+m+'/'+y; }
 
 function mkLineChart(id, labels, datasets, opts={}){
   const ctx = document.getElementById(id);
@@ -2615,17 +2615,17 @@ async function loadData(){
     document.getElementById('loading').style.display='none';
     document.getElementById('content').style.display='block';
 
-    const ts = json.updated_at || '‚Äî';
+    const ts = json.updated_at || '&#x2014;';
     document.getElementById('status-dot').className='status-dot green';
-    document.getElementById('status-text').textContent='Dados ao vivo ¬∑ '+ts;
-    document.getElementById('header-sub').textContent='Ritmo di√°rio √ó metas ‚Äî atualizado em '+ts;
+    document.getElementById('status-text').textContent='Dados ao vivo &#xB7; '+ts;
+    document.getElementById('header-sub').textContent='Ritmo di&#xE1;rio &#xD7; metas &#x2014; atualizado em '+ts;
 
     if(!json.hasData){
-      document.getElementById('content').innerHTML='<div style="text-align:center;padding:60px;color:var(--muted)"><div style="font-size:48px;margin-bottom:12px">üìã</div><h3>Dados ainda n√£o dispon√≠veis</h3></div>';
+      document.getElementById('content').innerHTML='<div style="text-align:center;padding:60px;color:var(--muted)"><div style="font-size:48px;margin-bottom:12px">&#x1F4CB;</div><h3>Dados ainda n&#xE3;o dispon&#xED;veis</h3></div>';
       return;
     }
 
-    // ‚îÄ‚îÄ KPIs ‚îÄ‚îÄ
+    // -- KPIs --
     document.getElementById('k-total').textContent    = fmt(json.totalTks);
     document.getElementById('k-days').textContent     = 'em '+json.totalDays+' dias';
     document.getElementById('k-avg').textContent      = fmt(json.avgPerDay);
@@ -2638,14 +2638,14 @@ async function loadData(){
     const accel = json.avg7 - json.avg30;
     const accelEl = document.getElementById('k-accel');
     if(accel > 5){
-      accelEl.innerHTML = '<span class="accel-badge accel-pos">‚Üë Acelerando +'+fmt(accel)+'/dia</span>';
+      accelEl.innerHTML = '<span class="accel-badge accel-pos">&#x2191; Acelerando +'+fmt(accel)+'/dia</span>';
     } else if(accel < -5){
-      accelEl.innerHTML = '<span class="accel-badge accel-neg">‚Üì Desacelerando '+fmt(accel)+'/dia</span>';
+      accelEl.innerHTML = '<span class="accel-badge accel-neg">&#x2193; Desacelerando '+fmt(accel)+'/dia</span>';
     } else {
-      accelEl.innerHTML = '<span class="accel-badge accel-flat">‚Üí Est√°vel (7d vs 30d)</span>';
+      accelEl.innerHTML = '<span class="accel-badge accel-flat">&#x2192; Est&#xE1;vel (7d vs 30d)</span>';
     }
 
-    // ‚îÄ‚îÄ Daily chart ‚îÄ‚îÄ
+    // -- Daily chart --
     const daily = json.dailyData || [];
     const ma    = json.maData    || [];
     // Show last 60 days for readability
@@ -2656,11 +2656,11 @@ async function loadData(){
       slice.map(d => fmtDate(d.date)),
       [
         { label:'Vendas por Dia', data: slice.map(d=>d.tks), backgroundColor:'rgba(91,141,238,0.15)', borderColor:'#5b8dee', borderWidth:2, fill:true, tension:0.3, pointRadius:2 },
-        { label:'M√©dia M√≥vel 7d', data: maSlice, borderColor:'#2ec27e', borderWidth:2, fill:false, tension:0.4, pointRadius:0, borderDash:[4,4] }
+        { label:'M&#xE9;dia M&#xF3;vel 7d', data: maSlice, borderColor:'#2ec27e', borderWidth:2, fill:false, tension:0.4, pointRadius:0, borderDash:[4,4] }
       ]
     );
 
-    // ‚îÄ‚îÄ Weekly chart ‚îÄ‚îÄ
+    // -- Weekly chart --
     const wk = json.weeklyData || [];
     const ctxW = document.getElementById('chartWeekly');
     if(ctxW && wk.length){
@@ -2681,20 +2681,20 @@ async function loadData(){
       });
     }
 
-    // ‚îÄ‚îÄ Proje√ß√£o ‚îÄ‚îÄ
+    // -- Proje&#xE7;&#xE3;o --
     document.getElementById('proj-rate').textContent     = fmt(json.avg7);
     document.getElementById('proj-atual').textContent    = fmt(json.totalTks);
     document.getElementById('proj-add').textContent      = fmt(json.projectedRemaining);
     document.getElementById('proj-days-rem').textContent = json.daysLeft;
     document.getElementById('proj-total').textContent    = fmt(json.projectedTotal);
 
-    // ‚îÄ‚îÄ Proje√ß√£o com Curva Hist√≥rica + Total Fim do Festival ‚îÄ‚îÄ
+    // -- Proje&#xE7;&#xE3;o com Curva Hist&#xF3;rica + Total Fim do Festival --
     (function() {
       const cd = json.daysLeft;
       const HIST_TOTALS = [107861, 93218, 140852, 175959, 185316];
       const HIST_YEARS  = [2015, 2017, 2019, 2022, 2024];
 
-      // ‚îÄ‚îÄ Parte 1: % vendido no countdown atual ‚Üí projeta total em D-0 ‚îÄ‚îÄ
+      // -- Parte 1: % vendido no countdown atual &#x2192; projeta total em D-0 --
       const row = HIST_CD[cd] || HIST_CD[cd+1] || HIST_CD[cd-1] || null;
       if (!row) return;
 
@@ -2723,18 +2723,18 @@ async function loadData(){
 
       if (upliftPct > 0) {
         document.getElementById('hist-uplift').innerHTML =
-          '<span style="color:#2ec27e;font-weight:700">‚¨Ü +'+upliftPct+'%</span> vs ritmo constante ¬∑ acelera√ß√£o esperada nos √∫ltimos '+cd+' dias';
+          '<span style="color:#2ec27e;font-weight:700">&#x2B06; +'+upliftPct+'%</span> vs ritmo constante &#xB7; acelera&#xE7;&#xE3;o esperada nos &#xFA;ltimos '+cd+' dias';
       } else if (upliftPct < 0) {
         document.getElementById('hist-uplift').innerHTML =
-          '<span style="color:var(--accent);font-weight:700">‚¨á '+upliftPct+'%</span> vs ritmo constante';
+          '<span style="color:var(--accent);font-weight:700">&#x2B07; '+upliftPct+'%</span> vs ritmo constante';
       }
       if (details.length > 0) {
         document.getElementById('hist-detail').style.display = 'block';
-        document.getElementById('hist-detail-text').textContent = details.join(' ¬∑ ');
+        document.getElementById('hist-detail-text').textContent = details.join(' &#xB7; ');
       }
 
-      // ‚îÄ‚îÄ Parte 2: fator p√≥s-in√≠cio ‚Üí projeta total no fim do festival (D+9 = 13/Set) ‚îÄ‚îÄ
-      // Para cada edi√ß√£o: fator = acumulado_D+9 / acumulado_D-0
+      // -- Parte 2: fator p&#xF3;s-in&#xED;cio &#x2192; projeta total no fim do festival (D+9 = 13/Set) --
+      // Para cada edi&#xE7;&#xE3;o: fator = acumulado_D+9 / acumulado_D-0
       // D+9 = key '-9' no HIST_CD
       const rowD0   = HIST_CD[0]   || [0,0,0,0,0];
       const rowDend = HIST_CD['-9'] || HIST_CD['-8'] || HIST_CD['-10'] || [0,0,0,0,0];
@@ -2748,7 +2748,7 @@ async function loadData(){
           const f = atEnd / atStart;
           factorSum += f;
           factorCount++;
-          factorDetails.push(HIST_YEARS[i]+': √ó'+f.toFixed(2));
+          factorDetails.push(HIST_YEARS[i]+': &#xD7;'+f.toFixed(2));
         }
       });
 
@@ -2764,14 +2764,14 @@ async function loadData(){
       document.getElementById('proj-festival-total').textContent   = fmt(projFestTotal);
       document.getElementById('proj-festival-add').textContent     = fmt(projFestAdd);
       document.getElementById('proj-festival-sub').textContent     =
-        'Curva hist√≥rica √ó fator p√≥s-in√≠cio m√©dio de '+factorCount+' edi√ß√µes (√ó'+avgFactor.toFixed(2)+')';
+        'Curva hist&#xF3;rica &#xD7; fator p&#xF3;s-in&#xED;cio m&#xE9;dio de '+factorCount+' edi&#xE7;&#xF5;es (&#xD7;'+avgFactor.toFixed(2)+')';
       document.getElementById('proj-festival-vs2024').innerHTML    =
         vs2024Pct >= 0
-          ? '<span style="color:#2ec27e">‚ñ≤ +'+vs2024Pct+'%</span> vs 2024 ('+fmt(vs2024)+')'
-          : '<span style="color:var(--accent)">‚ñº '+vs2024Pct+'%</span> vs 2024 ('+fmt(vs2024)+')';
+          ? '<span style="color:#2ec27e">&#x25B2; +'+vs2024Pct+'%</span> vs 2024 ('+fmt(vs2024)+')'
+          : '<span style="color:var(--accent)">&#x25BC; '+vs2024Pct+'%</span> vs 2024 ('+fmt(vs2024)+')';
     })();
 
-    // ‚îÄ‚îÄ Comparativo ‚îÄ‚îÄ
+    // -- Comparativo --
     renderComparativo(json);
 
   } catch(e){
@@ -2781,7 +2781,7 @@ async function loadData(){
     document.getElementById('status-text').textContent='Erro: '+e.message;
   }
 }
-// ‚îÄ‚îÄ Dados hist√≥ricos por edi√ß√£o ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// -- Dados hist&#xF3;ricos por edi&#xE7;&#xE3;o ------------------
 const HIST_DATA = [
   { year:2015, vendas:107861 },
   { year:2017, vendas:93218  },
@@ -2790,7 +2790,7 @@ const HIST_DATA = [
   { year:2024, vendas:185316 },
 ];
 
-// Ingressos acumulados por countdown (D-N = N dias antes do 1¬∫ show)
+// Ingressos acumulados por countdown (D-N = N dias antes do 1&#xBA; show)
 // Cada valor: [2015, 2017, 2019, 2022, 2024]
 const HIST_CD = {
   180:[0,0,0,0,0],179:[0,0,0,0,0],178:[0,0,0,37,0],177:[0,0,0,53,0],
@@ -2860,7 +2860,7 @@ const HIST_CD = {
   '-9':[107861,93218,140660,174954,185316],'-10':[107861,93218,140852,175959,185316]
 };
 
-// Converte dailyData (array {date,tks}) ‚Üí mapa countdown‚Üíacumulado para 2026
+// Converte dailyData (array {date,tks}) &#x2192; mapa countdown&#x2192;acumulado para 2026
 function build2026Countdown(dailyData) {
   const FESTIVAL = new Date('2026-09-04T00:00:00-03:00');
   const sorted = [...(dailyData||[])].sort((a,b)=>a.date.localeCompare(b.date));
@@ -2879,10 +2879,10 @@ function renderComparativo(json) {
   const cd2026 = build2026Countdown(json.dailyData || []);
   const currentCd = typeof json.daysLeft === 'number' ? json.daysLeft : 56;
 
-  const YR_LABELS = ['2015','2017','2019','2022','2024','2026 ‚ö°'];
+  const YR_LABELS = ['2015','2017','2019','2022','2024','2026 &#x26A1;'];
   const YR_COLORS = ['#748ffc','#f4a261','#2ec27e','#9b59b6','#1abc9c','#e63946'];
 
-  // Coleta todas as chaves num√©ricas dispon√≠veis, ordena do maior para menor (D-180 ‚Üí D+10)
+  // Coleta todas as chaves num&#xE9;ricas dispon&#xED;veis, ordena do maior para menor (D-180 &#x2192; D+10)
   const allKeys = Object.keys(HIST_CD).map(Number).sort((a,b)=>b-a);
 
   // Filtra: mostra apenas linhas com ao menos um dado > 0
@@ -2891,8 +2891,8 @@ function renderComparativo(json) {
     return row.some(v=>v>0) || (cd2026[cd] != null && cd2026[cd] > 0);
   });
 
-  // Pr√©-calcula deltas di√°rios para 2024 e 2026
-  // delta[cd] = acumulado[cd] - acumulado[cd+1] (D-(cd+1) √© o dia anterior)
+  // Pr&#xE9;-calcula deltas di&#xE1;rios para 2024 e 2026
+  // delta[cd] = acumulado[cd] - acumulado[cd+1] (D-(cd+1) &#xE9; o dia anterior)
   function dailyDelta2024(cd) {
     const cur  = (HIST_CD[cd]  || [0,0,0,0,0])[4] || 0;
     const prev = (HIST_CD[cd+1]|| [0,0,0,0,0])[4] || 0;
@@ -2905,11 +2905,11 @@ function renderComparativo(json) {
   }
 
   function fmtN(v) {
-    if (v == null || v === 0) return '<span style="color:#3a3f4a">‚Äî</span>';
+    if (v == null || v === 0) return '<span style="color:#3a3f4a">&#x2014;</span>';
     return Number(v).toLocaleString('pt-BR');
   }
   function fmtDiff(diff) {
-    if (diff == null) return '<span style="color:#3a3f4a">‚Äî</span>';
+    if (diff == null) return '<span style="color:#3a3f4a">&#x2014;</span>';
     const sign = diff >= 0 ? '+' : '';
     const cls  = diff >= 0 ? 'diff-pos' : 'diff-neg';
     return '<span class="'+cls+'">'+sign+Number(diff).toLocaleString('pt-BR')+'</span>';
@@ -2921,24 +2921,24 @@ function renderComparativo(json) {
     return ' <span class="'+cls+'">'+(pct>=0?'+':'')+pct.toFixed(0)+'%</span>';
   }
 
-  // ‚îÄ‚îÄ Cabe√ßalho com dois grupos ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+  // -- Cabe&#xE7;alho com dois grupos ----------------------------------------------
   let html = '<table class="comp-table"><thead>';
 
-  // Linha 1 ‚Äî grupo de colunas
+  // Linha 1 &#x2014; grupo de colunas
   html += '<tr>';
   html += '<th rowspan="2" style="min-width:56px;vertical-align:bottom">D-N</th>';
   html += '<th colspan="6" style="text-align:center;border-bottom:1px solid #2a3040;padding-bottom:4px">Ingressos Acumulados</th>';
   html += '<th colspan="3" style="text-align:center;border-bottom:1px solid #2a3040;padding-bottom:4px;color:#aaa">Vendas no Dia</th>';
   html += '</tr>';
 
-  // Linha 2 ‚Äî sub-cabe√ßalhos
+  // Linha 2 &#x2014; sub-cabe&#xE7;alhos
   html += '<tr>';
   YR_LABELS.forEach((y,i) => {
     html += '<th style="color:'+YR_COLORS[i]+'">'+y+'</th>';
   });
   html += '<th style="color:#1abc9c">Dia/2024</th>';
-  html += '<th style="color:#e63946">Dia/2026 ‚ö°</th>';
-  html += '<th style="color:#aaa">Œî 26-24</th>';
+  html += '<th style="color:#e63946">Dia/2026 &#x26A1;</th>';
+  html += '<th style="color:#aaa">&#x394; 26-24</th>';
   html += '</tr>';
 
   html += '</thead><tbody>';
@@ -2950,25 +2950,25 @@ function renderComparativo(json) {
     const rowCls = isCur ? ' class="row-current"' : '';
     const label  = cd >= 0 ? 'D-'+cd : 'D+'+Math.abs(cd);
 
-    // Deltas di√°rios
+    // Deltas di&#xE1;rios
     const d24  = dailyDelta2024(cd);
     const d26  = dailyDelta2026(cd);
     const diff = (d24 != null && d26 != null) ? (d26 - d24) : null;
 
     html += '<tr'+rowCls+'>';
-    html += '<td class="col-cd">'+label+(isCur?' ‚óÄ':'')+'</td>';
+    html += '<td class="col-cd">'+label+(isCur?' &#x25C0;':'')+'</td>';
 
-    // Acumulados hist√≥ricos (2015‚Äì2024)
-    hist.forEach(v => { html += '<td>'+(v ? fmtN(v) : '<span style="color:#3a3f4a">‚Äî</span>')+'</td>'; });
+    // Acumulados hist&#xF3;ricos (2015&#x2013;2024)
+    hist.forEach(v => { html += '<td>'+(v ? fmtN(v) : '<span style="color:#3a3f4a">&#x2014;</span>')+'</td>'; });
 
     // Acumulado 2026
     const prev2024 = hist[4] || 0;
     const badge = (v2026 && prev2024) ? growthBadge(v2026, prev2024) : '';
-    html += '<td class="col-2026">'+( v2026 ? fmtN(v2026)+badge : '<span style="color:#3a3f4a">‚Äî</span>' )+'</td>';
+    html += '<td class="col-2026">'+( v2026 ? fmtN(v2026)+badge : '<span style="color:#3a3f4a">&#x2014;</span>' )+'</td>';
 
     // Vendas no dia
     html += '<td class="col-daily">'+fmtN(d24)+'</td>';
-    html += '<td class="col-daily col-2026">'+( d26 != null ? fmtN(d26) : '<span style="color:#3a3f4a">‚Äî</span>' )+'</td>';
+    html += '<td class="col-daily col-2026">'+( d26 != null ? fmtN(d26) : '<span style="color:#3a3f4a">&#x2014;</span>' )+'</td>';
     html += '<td class="col-daily">'+fmtDiff(diff)+'</td>';
 
     html += '</tr>';
@@ -2987,10 +2987,10 @@ function renderComparativo(json) {
 function exportComparativo() {
   if (typeof XLSX === 'undefined') { alert('SheetJS ainda carregando, tente em breve.'); return; }
   const table = document.querySelector('.comp-table');
-  if (!table) { alert('Tabela ainda n√£o carregada.'); return; }
+  if (!table) { alert('Tabela ainda n&#xE3;o carregada.'); return; }
   const ws = XLSX.utils.table_to_sheet(table);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Comparativo Hist√≥rico');
+  XLSX.utils.book_append_sheet(wb, ws, 'Comparativo Hist&#xF3;rico');
   XLSX.writeFile(wb, 'comparativo-historico-RiR.xlsx');
 }
 
@@ -2999,15 +2999,15 @@ document.addEventListener('DOMContentLoaded', loadData);
 </body></html>`;
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
-// PAGAMENTO √ó PERFIL PAGE
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
+// PAGAMENTO &#xD7; PERFIL PAGE
+// ---------------------------------------------
 function getPagamentoHTML(username) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pagamento √ó Perfil ‚Äî Rock in Rio 2026</title>
+<title>Pagamento &#xD7; Perfil &#x2014; Rock in Rio 2026</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 ${SHARED_CSS_VARS}
@@ -3068,12 +3068,12 @@ ${SHARED_HEADER_CSS}
   <div class="header-left">
     <div class="logo-badge">Rock in Rio 2026</div>
     <div>
-      <h1>Pagamento √ó Perfil</h1>
-      <p>M√©todos de pagamento, bancos e perfil do comprador ¬∑ Logado como <strong>${username}</strong></p>
+      <h1>Pagamento &#xD7; Perfil</h1>
+      <p>M&#xE9;todos de pagamento, bancos e perfil do comprador &#xB7; Logado como <strong>${username}</strong></p>
     </div>
   </div>
   <div class="header-right">
-    <a href="/" class="btn btn-back">‚Üê Painel</a>
+    <a href="/" class="btn btn-back">&#x2190; Painel</a>
     <form method="POST" action="/logout" style="margin:0">
       <button class="btn btn-secondary" type="submit">Sair</button>
     </form>
@@ -3089,75 +3089,75 @@ ${SHARED_HEADER_CSS}
 
   <!-- KPIs -->
   <div class="kpis">
-    <div class="kpi"><div class="kpi-icon">üéüÔ∏è</div><div class="kpi-label">Total Ingressos</div><div class="kpi-val" id="k-total">‚Äî</div></div>
-    <div class="kpi green"><div class="kpi-icon">üí≥</div><div class="kpi-label">Cart√£o de Cr√©dito</div><div class="kpi-val" id="k-cc">‚Äî</div><div class="kpi-sub" id="k-cc-sub"></div></div>
-    <div class="kpi teal"><div class="kpi-icon">üè¶</div><div class="kpi-label">PIX</div><div class="kpi-val" id="k-pix">‚Äî</div><div class="kpi-sub" id="k-pix-sub"></div></div>
-    <div class="kpi"><div class="kpi-icon">üèÜ</div><div class="kpi-label">Top M√©todo</div><div class="kpi-val" id="k-top-bank" style="font-size:16px">‚Äî</div></div>
-    <div class="kpi gold"><div class="kpi-icon">‚≠ê</div><div class="kpi-label">Bandeira #1</div><div class="kpi-val" id="k-top-brand" style="font-size:15px">‚Äî</div></div>
+    <div class="kpi"><div class="kpi-icon">&#x1F39F;&#xFE0F;</div><div class="kpi-label">Total Ingressos</div><div class="kpi-val" id="k-total">&#x2014;</div></div>
+    <div class="kpi green"><div class="kpi-icon">&#x1F4B3;</div><div class="kpi-label">Cart&#xE3;o de Cr&#xE9;dito</div><div class="kpi-val" id="k-cc">&#x2014;</div><div class="kpi-sub" id="k-cc-sub"></div></div>
+    <div class="kpi teal"><div class="kpi-icon">&#x1F3E6;</div><div class="kpi-label">PIX</div><div class="kpi-val" id="k-pix">&#x2014;</div><div class="kpi-sub" id="k-pix-sub"></div></div>
+    <div class="kpi"><div class="kpi-icon">&#x1F3C6;</div><div class="kpi-label">Top M&#xE9;todo</div><div class="kpi-val" id="k-top-bank" style="font-size:16px">&#x2014;</div></div>
+    <div class="kpi gold"><div class="kpi-icon">&#x2B50;</div><div class="kpi-label">Bandeira #1</div><div class="kpi-val" id="k-top-brand" style="font-size:15px">&#x2014;</div></div>
   </div>
 
-  <!-- M√©todo de Pagamento + Bandeiras -->
+  <!-- M&#xE9;todo de Pagamento + Bandeiras -->
   <div class="charts-row">
     <div class="section">
       <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
-        <span>üí≥ M√©todo de Pagamento</span>
+        <span>&#x1F4B3; M&#xE9;todo de Pagamento</span>
         <button id="btn-export-cortesia" onclick="exportCortesiaClub()" style="display:none;padding:5px 12px;border:none;border-radius:6px;background:linear-gradient(135deg,#c0392b,#8e1a11);color:#fff;font-size:12px;font-weight:600;cursor:pointer;gap:5px;align-items:center">
-          ‚¨á Exportar Cortesia Club
+          &#x2B07; Exportar Cortesia Club
         </button>
       </div>
       <div id="paytype-list"></div>
     </div>
     <div class="section">
-      <div class="section-title">‚≠ê Bandeiras de Cart√£o</div>
+      <div class="section-title">&#x2B50; Bandeiras de Cart&#xE3;o</div>
       <div class="chart-wrap"><canvas id="chartBrand"></canvas></div>
     </div>
   </div>
 
-  <!-- Tipo Cart√£o + Parcelamento (s√≥ com dados) -->
+  <!-- Tipo Cart&#xE3;o + Parcelamento (s&#xF3; com dados) -->
   <div class="charts-row" id="row-extras" style="display:none">
     <div class="section" id="section-cardtype" style="display:none">
-      <div class="section-title">üîµ Tipo de Cart√£o</div>
+      <div class="section-title">&#x1F535; Tipo de Cart&#xE3;o</div>
       <div class="chart-wrap-sm" style="margin-top:20px"><canvas id="chartCardType"></canvas></div>
     </div>
     <div class="section" id="section-install" style="display:none">
-      <div class="section-title">üìä Parcelamento</div>
+      <div class="section-title">&#x1F4CA; Parcelamento</div>
       <div class="chart-wrap"><canvas id="chartInstall"></canvas></div>
     </div>
   </div>
 
-  <!-- Parcelamento (s√≥ com dados) -->
+  <!-- Parcelamento (s&#xF3; com dados) -->
   <div class="section" id="section-install" style="display:none">
-    <div class="section-title">üìä Parcelamento</div>
+    <div class="section-title">&#x1F4CA; Parcelamento</div>
     <div class="chart-wrap"><canvas id="chartInstall"></canvas></div>
   </div>
 
-  <!-- G√™nero -->
+  <!-- G&#xEA;nero -->
   <div class="section" id="section-gender" style="display:none">
-    <div class="section-title">üë• Perfil ‚Äî G√™nero</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Distribui√ß√£o por g√™nero do comprador</p>
+    <div class="section-title">&#x1F465; Perfil &#x2014; G&#xEA;nero</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Distribui&#xE7;&#xE3;o por g&#xEA;nero do comprador</p>
     <div class="gender-split">
-      <span style="font-size:13px;color:var(--purple);font-weight:700">‚ôÄ Fem</span>
+      <span style="font-size:13px;color:var(--purple);font-weight:700">&#x2640; Fem</span>
       <div class="gender-bar">
-        <div class="gender-bar-f" id="gender-bar-f">‚Äî</div>
-        <div class="gender-bar-m" id="gender-bar-m">‚Äî</div>
+        <div class="gender-bar-f" id="gender-bar-f">&#x2014;</div>
+        <div class="gender-bar-m" id="gender-bar-m">&#x2014;</div>
       </div>
-      <span style="font-size:13px;color:var(--blue);font-weight:700">Masc ‚ôÇ</span>
+      <span style="font-size:13px;color:var(--blue);font-weight:700">Masc &#x2642;</span>
     </div>
     <div class="gender-labels"><span id="gender-lbl-f"></span><span id="gender-lbl-m"></span></div>
   </div>
 
   <!-- Idade -->
   <div class="section" id="section-age" style="display:none">
-    <div class="section-title">üìÖ Perfil ‚Äî Faixa Et√°ria</div>
+    <div class="section-title">&#x1F4C5; Perfil &#x2014; Faixa Et&#xE1;ria</div>
     <div class="chart-wrap"><canvas id="chartAge"></canvas></div>
   </div>
 
   <!-- No data message -->
   <div id="no-data" style="display:none">
     <div class="no-data">
-      <div class="no-data-icon">üìã</div>
-      <h3>Dados de pagamento n√£o dispon√≠veis</h3>
-      <p style="max-width:480px;margin:0 auto;font-size:13px">A API Crowder ainda n√£o retornou dados detalhados de pagamento e perfil para esta chave. Esses dados aparecem conforme as vendas s√£o processadas.</p>
+      <div class="no-data-icon">&#x1F4CB;</div>
+      <h3>Dados de pagamento n&#xE3;o dispon&#xED;veis</h3>
+      <p style="max-width:480px;margin:0 auto;font-size:13px">A API Crowder ainda n&#xE3;o retornou dados detalhados de pagamento e perfil para esta chave. Esses dados aparecem conforme as vendas s&#xE3;o processadas.</p>
     </div>
   </div>
 
@@ -3191,9 +3191,9 @@ async function loadData(){
     document.getElementById('loading').style.display='none';
     document.getElementById('content').style.display='block';
 
-    const ts = json.updated_at || '‚Äî';
+    const ts = json.updated_at || '&#x2014;';
     document.getElementById('status-dot').className='status-dot green';
-    document.getElementById('status-text').textContent = 'Dados ao vivo ¬∑ '+ts;
+    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; '+ts;
 
     if(!json.hasData){
       document.getElementById('no-data').style.display='block';
@@ -3202,7 +3202,7 @@ async function loadData(){
       return;
     }
 
-    // ‚îÄ‚îÄ KPIs ‚îÄ‚îÄ
+    // -- KPIs --
     const total = json.total||0;
     document.getElementById('k-total').textContent   = fmt(total);
     document.getElementById('k-cc').textContent      = fmt(json.ccCount||0);
@@ -3213,8 +3213,8 @@ async function loadData(){
     if(topPt) document.getElementById('k-top-bank').textContent = topPt[0];
     if(json.brandSorted&&json.brandSorted[0]) document.getElementById('k-top-brand').textContent = json.brandSorted[0][0];
 
-    // ‚îÄ‚îÄ M√©todo de Pagamento (tabela com barras) ‚îÄ‚îÄ
-    const PT_COLORS = {'Cr√©dito':'#5b8dee','PIX':'#2ec27e','D√©bito':'#9b59b6','Boleto':'#f4a261','PREPAID_CARD':'#1abc9c','Cortesia Club':'#c0392b','Cortesia':'#e67e22'};
+    // -- M&#xE9;todo de Pagamento (tabela com barras) --
+    const PT_COLORS = {'Cr&#xE9;dito':'#5b8dee','PIX':'#2ec27e','D&#xE9;bito':'#9b59b6','Boleto':'#f4a261','PREPAID_CARD':'#1abc9c','Cortesia Club':'#c0392b','Cortesia':'#e67e22'};
     const ptEntries = Object.entries(json.payTypeMap||{}).sort((a,b)=>b[1]-a[1]);
     const ptMax = ptEntries[0]?.[1]||1;
     const ptHtml = ptEntries.map((e,i)=>{
@@ -3230,17 +3230,17 @@ async function loadData(){
     }).join('');
     document.getElementById('paytype-list').innerHTML = '<table class="bank-table">'+ptHtml+'</table>';
 
-    // ‚îÄ‚îÄ Exibe bot√£o Exportar Cortesia Club se houver dados ‚îÄ‚îÄ
+    // -- Exibe bot&#xE3;o Exportar Cortesia Club se houver dados --
     const hasCortesia = (json.payTypeMap||{})['Cortesia Club'] > 0;
     const btnExport = document.getElementById('btn-export-cortesia');
     if(btnExport) btnExport.style.display = hasCortesia ? 'inline-flex' : 'none';
 
-    // ‚îÄ‚îÄ Bandeiras ‚îÄ‚îÄ
+    // -- Bandeiras --
     const brands = json.brandSorted||[];
     const brandColors = brands.map(b=>BRAND_COLORS[b[0]]||BLUE_PALETTE[brands.indexOf(b)%BLUE_PALETTE.length]);
     mkChart('chartBrand','doughnut', brands.map(b=>b[0]), brands.map(b=>b[1]), brandColors);
 
-    // ‚îÄ‚îÄ Parcelas (s√≥ se houver dados) ‚îÄ‚îÄ
+    // -- Parcelas (s&#xF3; se houver dados) --
     const inst = json.installSorted||[];
     if(inst.length>0){
       document.getElementById('section-install').style.display='block';
@@ -3248,7 +3248,7 @@ async function loadData(){
       mkChart('chartInstall','bar', inst.map(i=>i[0]), inst.map(i=>i[1]), BLUE_PALETTE);
     }
 
-    // ‚îÄ‚îÄ Tipo Cart√£o (s√≥ se houver dados) ‚îÄ‚îÄ
+    // -- Tipo Cart&#xE3;o (s&#xF3; se houver dados) --
     const ct = Object.entries(json.cardTypeMap||{}).sort((a,b)=>b[1]-a[1]);
     if(ct.length>0){
       document.getElementById('section-cardtype').style.display='block';
@@ -3256,7 +3256,7 @@ async function loadData(){
       mkChart('chartCardType','doughnut', ct.map(c=>c[0]), ct.map(c=>c[1]), ['#5b8dee','#2ec27e','#9b59b6','#e63946']);
     }
 
-    // ‚îÄ‚îÄ G√™nero ‚îÄ‚îÄ
+    // -- G&#xEA;nero --
     const gm = json.genderMap||{};
     const fCount = gm['FEMALE']||gm['F']||0;
     const mCount = gm['MALE']||gm['M']||0;
@@ -3273,7 +3273,7 @@ async function loadData(){
       document.getElementById('gender-lbl-m').textContent = 'Masculino: '+mCount.toLocaleString('pt-BR')+' ('+mp+'%)';
     }
 
-    // ‚îÄ‚îÄ Faixa Et√°ria ‚îÄ‚îÄ
+    // -- Faixa Et&#xE1;ria --
     const ageOrder = ['<18','18-24','25-34','35-44','45-54','55+'];
     const am = json.ageMap||{};
     const ageEntries = Object.entries(am).sort((a,b)=>{
@@ -3294,7 +3294,7 @@ async function loadData(){
 }
 function exportCortesiaClub() {
   const btn = document.getElementById('btn-export-cortesia');
-  if(btn) { btn.disabled = true; btn.textContent = '‚è≥ Baixando...'; }
+  if(btn) { btn.disabled = true; btn.textContent = '&#x23F3; Baixando...'; }
   fetch('/api/cortesia-club/csv')
     .then(r => {
       if(!r.ok) throw new Error('Erro '+r.status);
@@ -3311,7 +3311,7 @@ function exportCortesiaClub() {
     })
     .catch(err => alert('Erro ao exportar: ' + err.message))
     .finally(() => {
-      if(btn) { btn.disabled = false; btn.innerHTML = '‚¨á Exportar Cortesia Club'; }
+      if(btn) { btn.disabled = false; btn.innerHTML = '&#x2B07; Exportar Cortesia Club'; }
     });
 }
 document.addEventListener('DOMContentLoaded', loadData);
@@ -3319,15 +3319,15 @@ document.addEventListener('DOMContentLoaded', loadData);
 </body></html>`;
 }
 
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 // START
-// ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ‚îÄ
+// ---------------------------------------------
 app.listen(PORT, () => {
-  console.log(`\nüé∏ Rock in Rio Dashboard rodando em http://localhost:${PORT}`);
-  console.log(`\n‚öôÔ∏è  Vari√°veis de ambiente:`);
+  console.log(`\n&#x1F3B8; Rock in Rio Dashboard rodando em http://localhost:${PORT}`);
+  console.log(`\n&#x2699;&#xFE0F;  Vari&#xE1;veis de ambiente:`);
   console.log(`   USERS          = "usuario1:senha1,usuario2:senha2"`);
-  console.log(`   SESSION_SECRET = "string-aleat√≥ria-longa"`);
-  console.log(`   CROWDER_API_KEY = (opcional, padr√£o em c√≥digo)\n`);
+  console.log(`   SESSION_SECRET = "string-aleat&#xF3;ria-longa"`);
+  console.log(`   CROWDER_API_KEY = (opcional, padr&#xE3;o em c&#xF3;digo)\n`);
   // Buscar dados imediatamente ao iniciar
   refreshData();
 });
