@@ -85,20 +85,23 @@ function aggregateCrowderData(movements, catalogShows = []) {
 
   // -- Primeiro passo: mapeia preco unitario de cada produto a partir dos registros PAGOS --
   // (cortesias tem amount=0; busca o preco nos registros normais do mesmo produto)
-  const productPriceMap = {}; // prodKey -> preco unitario (maior valor visto)
+  // Indexa por ID ("id:NNN") E por nome ("name:NOME") para cobrir casos onde o product.id
+  // do registro de cortesia difere do registro pago, mas o nome do produto eh o mesmo.
+  const productPriceMap = {};
+  const _setProdPrice = (key, unitPrice) => {
+    if (key && (!productPriceMap[key] || unitPrice > productPriceMap[key])) {
+      productPriceMap[key] = unitPrice;
+    }
+  };
   for (const m of tickets) {
     if ((m.amount || 0) <= 0 || (m.ticketCount || 0) <= 0) continue;
     const rateCat_ = m.rate?.category?.name || '';
     if (rateCat_ === 'Cortesia Club' || rateCat_ === 'Cortesia') continue;
     const payType_ = m.payment?.type || m.purchase?.payment?.type || '';
     if (payType_ === 'FREE' || payType_ === 'GIFT') continue;
-    const prodKey = m.product?.id ? String(m.product.id) : (m.product?.name || '');
-    if (!prodKey) continue;
     const unitPrice = m.amount / m.ticketCount;
-    // Guarda o maior preco unitario visto para este produto
-    if (!productPriceMap[prodKey] || unitPrice > productPriceMap[prodKey]) {
-      productPriceMap[prodKey] = unitPrice;
-    }
+    if (m.product?.id)   _setProdPrice('id:'   + String(m.product.id),   unitPrice);
+    if (m.product?.name) _setProdPrice('name:' + String(m.product.name), unitPrice);
   }
 
   for (const m of tickets) {
@@ -213,10 +216,12 @@ function aggregateCrowderData(movements, catalogShows = []) {
         const channel = purch.channel || {};
         const geo = purch.geoInfo || {};
         // Valor de desconto: preco que seria cobrado se nao fosse cortesia
-        // Busca nos registros PAGOS do mesmo produto (productPriceMap, primeiro passo)
-        // Fallback: campos da API Crowder caso o produto nao tenha registro pago
-        const prodKey_ = m.product?.id ? String(m.product.id) : (m.product?.name || '');
-        const unitPriceFromMap = productPriceMap[prodKey_] || 0;
+        // Busca por ID primeiro; se nao achar (product.id diferente entre pago e cortesia),
+        // tenta pelo nome do produto (mais tolerante a variacao de ID)
+        const unitPriceFromMap =
+          (m.product?.id   ? productPriceMap['id:'   + String(m.product.id)]   : 0) ||
+          (m.product?.name ? productPriceMap['name:' + String(m.product.name)] : 0) ||
+          0;
         const valorDescontoAPI =
           m.rate?.price         ||
           m.rate?.listPrice     ||
