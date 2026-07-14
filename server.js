@@ -1278,7 +1278,7 @@ async function loadData() {
     if(!d) throw new Error('Sem dados');
     render(d.salesByDate||[]);
     const dot = document.getElementById('status-dot'); dot.className='status-dot green';
-    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; Atualizado: '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'&#x2014;');
+    document.getElementById('status-text').textContent = 'Dados ao vivo \u00B7 Atualizado: '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'&#x2014;');
     document.getElementById('loading').classList.add('hidden');
   } catch(e) {
     document.getElementById('status-dot').className='status-dot red';
@@ -1438,7 +1438,7 @@ async function loadData() {
     if(!d) throw new Error('Sem dados');
     render(d.rawShows||[]);
     document.getElementById('status-dot').className='status-dot green';
-    document.getElementById('status-text').textContent='Dados ao vivo &#xB7; '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'&#x2014;');
+    document.getElementById('status-text').textContent='Dados ao vivo \u00B7 '+(json.lastRefresh?new Date(json.lastRefresh).toLocaleString('pt-BR'):'&#x2014;');
     document.getElementById('loading').classList.add('hidden');
   } catch(e) {
     document.getElementById('status-dot').className='status-dot red';
@@ -1729,7 +1729,7 @@ async function loadData() {
     if (!d) throw new Error('Sem dados');
     render(d.rawShows || []);
     document.getElementById('status-dot').className = 'status-dot green';
-    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '&#x2014;');
+    document.getElementById('status-text').textContent = 'Dados ao vivo \u00B7 ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '&#x2014;');
     document.getElementById('loading').classList.add('hidden');
   } catch(e) {
     document.getElementById('status-dot').className = 'status-dot red';
@@ -2123,7 +2123,7 @@ async function loadData() {
     if (!json.data) throw new Error('Sem dados');
     render(json.data.rawShows || []);
     document.getElementById('status-dot').className = 'status-dot green';
-    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '&#x2014;');
+    document.getElementById('status-text').textContent = 'Dados ao vivo \u00B7 ' + (json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '&#x2014;');
   } catch(e) {
     document.getElementById('status-dot').className = 'status-dot red';
     document.getElementById('status-text').textContent = 'Erro: ' + e.message;
@@ -2361,7 +2361,7 @@ async function loadData(){
     document.getElementById('content').style.display='block';
     document.getElementById('status-dot').className='status-dot green';
     const ts = json.lastRefresh ? new Date(json.lastRefresh).toLocaleString('pt-BR') : '&#x2014;';
-    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; '+ts;
+    document.getElementById('status-text').textContent = 'Dados ao vivo \u00B7 '+ts;
     document.getElementById('last-upd').textContent    = 'Atualizado: '+ts;
   } catch(e){
     document.getElementById('loading').style.display='none';
@@ -2617,8 +2617,8 @@ async function loadData(){
 
     const ts = json.updated_at || '&#x2014;';
     document.getElementById('status-dot').className='status-dot green';
-    document.getElementById('status-text').textContent='Dados ao vivo &#xB7; '+ts;
-    document.getElementById('header-sub').textContent='Ritmo di&#xE1;rio &#xD7; metas &#x2014; atualizado em '+ts;
+    document.getElementById('status-text').textContent='Dados ao vivo \u00B7 '+ts;
+    document.getElementById('header-sub').innerHTML='Ritmo di&#xE1;rio &#xD7; metas &#x2014; atualizado em '+ts;
 
     if(!json.hasData){
       document.getElementById('content').innerHTML='<div style="text-align:center;padding:60px;color:var(--muted)"><div style="font-size:48px;margin-bottom:12px">&#x1F4CB;</div><h3>Dados ainda n&#xE3;o dispon&#xED;veis</h3></div>';
@@ -3194,7 +3194,7 @@ async function loadData(){
 
     const ts = json.updated_at || '&#x2014;';
     document.getElementById('status-dot').className='status-dot green';
-    document.getElementById('status-text').textContent = 'Dados ao vivo &#xB7; '+ts;
+    document.getElementById('status-text').textContent = 'Dados ao vivo \u00B7 '+ts;
 
     if(!json.hasData){
       document.getElementById('no-data').style.display='block';
@@ -3211,7 +3211,7 @@ async function loadData(){
     document.getElementById('k-pix').textContent     = fmt(json.pixCount||0);
     document.getElementById('k-pix-sub').textContent = total ? ((json.pixCount||0)*100/total).toFixed(1)+'% do total' : '';
     const topPt = Object.entries(json.payTypeMap||{}).sort((a,b)=>b[1]-a[1])[0];
-    if(topPt) document.getElementById('k-top-bank').textContent = topPt[0];
+    if(topPt) document.getElementById('k-top-bank').innerHTML = topPt[0];
     if(json.brandSorted&&json.brandSorted[0]) document.getElementById('k-top-brand').textContent = json.brandSorted[0][0];
 
     // -- M&#xE9;todo de Pagamento (tabela com barras) --
