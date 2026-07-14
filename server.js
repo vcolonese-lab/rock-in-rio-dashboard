@@ -56,6 +56,149 @@ let state = {
 };
 
 // ---------------------------------------------
+// GOOGLE SHEETS -- FINANCEIRO
+// ---------------------------------------------
+let financialCache = { data: null, err: null, lastFetch: null };
+const FINANCIAL_CACHE_TTL = 5 * 60 * 1000;
+
+async function getGoogleAccessToken() {
+  const raw = process.env.GOOGLE_CREDENTIALS;
+  if (!raw) return null;
+  try {
+    const creds = JSON.parse(raw);
+    const now = Math.floor(Date.now() / 1000);
+    const hdr = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const pld = Buffer.from(JSON.stringify({
+      iss: creds.client_email,
+      scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: now, exp: now + 3600
+    })).toString('base64url');
+    const signer = crypto.createSign('RSA-SHA256');
+    signer.update(hdr + '.' + pld);
+    const sig = signer.sign(creds.private_key, 'base64url');
+    const jwt = hdr + '.' + pld + '.' + sig;
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + jwt
+    });
+    const d = await r.json();
+    return d.access_token || null;
+  } catch (e) {
+    console.error('[Financeiro] Google auth error:', e.message);
+    return null;
+  }
+}
+
+async function fetchSheetRows() {
+  const token = await getGoogleAccessToken();
+  if (!token) return { error: 'GOOGLE_CREDENTIALS nao configurado', rows: null };
+  const sid = process.env.GOOGLE_SHEETS_ID || '19jTRYhW-8bclv3wSuAzGgmt07ouDw82C';
+  const tab = process.env.GOOGLE_SHEETS_TAB || 'Orçamento';
+  const range = encodeURIComponent(tab + '!A1:O70');
+  try {
+    const r = await fetch(
+      'https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + range,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const d = await r.json();
+    if (d.error) return { error: d.error.message, rows: null };
+    return { rows: d.values || [], error: null };
+  } catch (e) {
+    return { error: e.message, rows: null };
+  }
+}
+
+function parseFinancialRows(rows) {
+  const norm = s => String(s || '').trim().toLowerCase()
+    .replace(/[áàãâ]/g, 'a')
+    .replace(/[éêè]/g, 'e')
+    .replace(/[íìï]/g, 'i')
+    .replace(/[óõôò]/g, 'o')
+    .replace(/[úùû]/g, 'u')
+    .replace(/ç/g, 'c');
+
+  const toNum = v => {
+    if (v == null || String(v).trim() === '' || String(v).trim() === '-') return 0;
+    return parseFloat(String(v).replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, '')) || 0;
+  };
+  const toPct = v => {
+    if (v == null || String(v).trim() === '' || String(v).trim() === '-') return null;
+    return parseFloat(String(v).replace('%', '').replace(',', '.').trim()) || null;
+  };
+
+  // Detect column layout from header row (contains REAL and PESSIMISTA)
+  let C = { real: 1, rp: 2, pess: 3, pp: 4, realista: 5, rp2: 6, oti: 7, op: 8, y24: 9, p24: 10, y22: 11, p22: 12 };
+  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+    const row = rows[i];
+    const joined = row.join('|').toUpperCase();
+    if (joined.includes('REAL') && joined.includes('PESSIMISTA')) {
+      let rIdx = -1;
+      for (let j = 0; j < row.length; j++) {
+        if (String(row[j]).toUpperCase().trim() === 'REAL') { rIdx = j; break; }
+      }
+      if (rIdx < 0) {
+        for (let j = 0; j < row.length; j++) {
+          const v = String(row[j]).toUpperCase();
+          if (v.includes('REAL') && !v.includes('REALISTA') && !v.includes('RESULTADO')) { rIdx = j; break; }
+        }
+      }
+      if (rIdx >= 0) {
+        C = {
+          real: rIdx,       rp: rIdx + 1,
+          pess: rIdx + 2,   pp: rIdx + 3,
+          realista: rIdx + 4, rp2: rIdx + 5,
+          oti: rIdx + 6,    op: rIdx + 7,
+          y24: rIdx + 8,    p24: rIdx + 9,
+          y22: rIdx + 10,   p22: rIdx + 11
+        };
+      }
+      break;
+    }
+  }
+
+  const ex = row => {
+    if (!row) return null;
+    return {
+      real:        toNum(row[C.real]),    realPct:     toPct(row[C.rp]),
+      pess:        toNum(row[C.pess]),    pessPct:     toPct(row[C.pp]),
+      realista:    toNum(row[C.realista]),realistaPct: toPct(row[C.rp2]),
+      oti:         toNum(row[C.oti]),     otiPct:      toPct(row[C.op]),
+      y2024:       toNum(row[C.y24]),     y2024Pct:    toPct(row[C.p24]),
+      y2022:       toNum(row[C.y22]),     y2022Pct:    toPct(row[C.p22])
+    };
+  };
+
+  const findRow = (...labels) => {
+    const norms = labels.map(norm);
+    for (const row of rows) {
+      const n = norm(row[0] || '');
+      if (norms.some(nl => n === nl || (nl.length > 4 && n.startsWith(nl)))) return row;
+    }
+    return null;
+  };
+
+  return {
+    receita:     ex(findRow('Receita', 'Receitas', 'Total Receita')),
+    passagens:   ex(findRow('Passagens', 'Venda Passagens', 'Passagem')),
+    repasse:     ex(findRow('(-) Repasse', 'Repasse Oper', 'Repasse')),
+    midia:       ex(findRow('Mídia', 'Midia', 'M&B', 'Media')),
+    cb:          ex(findRow('C&B', 'Comida e Bebida', 'C & B', 'Alimentacao')),
+    despesas:    ex(findRow('Despesas', 'Total Despesas', 'Despesas Totais')),
+    rockInRio:   ex(findRow('Rock in Rio', 'Rock In Rio', 'RiR Fee')),
+    operacao:    ex(findRow('Operação', 'Operacao', 'Operações')),
+    publicidade: ex(findRow('Publicidade', 'Marketing', 'Propaganda')),
+    producao:    ex(findRow('Produção', 'Producao')),
+    sac:         ex(findRow('SAC', 'Atendimento ao Cliente', 'Atendimento')),
+    sdv:         ex(findRow('SdV', 'Sistema de Vendas', 'SDV')),
+    pulseiras:   ex(findRow('Pulseiras', 'Pulseira')),
+    imposto:     ex(findRow('Imposto', 'Impostos', 'Tributos', 'ISS')),
+    resultado:   ex(findRow('Resultado PC', 'Resultado Bruto', 'Resultado Final', 'Lucro'))
+  };
+}
+
+// ---------------------------------------------
 // CROWDER DATA AGGREGATION
 // ---------------------------------------------
 function aggregateCrowderData(movements, catalogShows = []) {
@@ -1147,6 +1290,11 @@ ${SHARED_HEADER_CSS}
   <a href="/velocidade" class="nav-card" style="border-color:#2ec27e44">
     <div class="nav-card-icon">&#x1F680;</div>
     <div><div class="nav-card-title">Velocidade de Vendas</div><div class="nav-card-desc">Ritmo di&#xE1;rio, tend&#xEA;ncia e proje&#xE7;&#xE3;o at&#xE9; o festival</div></div>
+    <div class="nav-card-arrow">&#x203A;</div>
+  </a>
+  <a href="/financeiro" class="nav-card" style="border-color:#f5a62344">
+    <div class="nav-card-icon">&#x1F4B0;</div>
+    <div><div class="nav-card-title">Resultado Financeiro</div><div class="nav-card-desc">Or&#xE7;amento, cen&#xE1;rios e margem por proje&#xE7;&#xE3;o</div></div>
     <div class="nav-card-arrow">&#x203A;</div>
   </a>
 </div>
@@ -3392,6 +3540,349 @@ function exportCortesiaClub() {
       if(btn) { btn.disabled = false; btn.innerHTML = '&#x2B07; Exportar Cortesia Club'; }
     });
 }
+document.addEventListener('DOMContentLoaded', loadData);
+<\/script>
+</body></html>`;
+}
+
+// -- API: financeiro data ------------------
+app.get('/api/financeiro', requireAuth, async (req, res) => {
+  const now = Date.now();
+  if (financialCache.data && financialCache.lastFetch && (now - financialCache.lastFetch) < FINANCIAL_CACHE_TTL) {
+    return res.json({ ok: true, cached: true, data: financialCache.data, updatedAt: new Date(financialCache.lastFetch).toISOString() });
+  }
+  try {
+    const { rows, error } = await fetchSheetRows();
+    if (error || !rows) {
+      return res.json({ ok: false, error: error || 'Falha ao ler planilha', data: null });
+    }
+    const data = parseFinancialRows(rows);
+    financialCache = { data, err: null, lastFetch: Date.now() };
+    res.json({ ok: true, cached: false, data, updatedAt: new Date(financialCache.lastFetch).toISOString() });
+  } catch (e) {
+    res.json({ ok: false, error: e.message, data: null });
+  }
+});
+
+// -- API: debug financeiro raw rows --------
+app.get('/api/debug/financeiro-raw', requireAuth, async (req, res) => {
+  try {
+    const result = await fetchSheetRows();
+    res.json(result);
+  } catch (e) {
+    res.json({ error: e.message });
+  }
+});
+
+// -- Sub-page: Financeiro ------------------
+app.get('/financeiro', requireAuth, (req, res) => {
+  res.send(getFinanceiroHTML(req.session.user));
+});
+
+function getFinanceiroHTML(username) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resultado Financeiro &#x2014; Rock in Rio 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>
+<style>
+${SHARED_CSS_VARS}
+${SHARED_HEADER_CSS}
+  .content{padding:20px 32px 60px}
+  .scenarios{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
+  .sc-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 12px;position:relative;overflow:hidden}
+  .sc-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
+  .sc-real::before{background:#f5a623}.sc-pess::before{background:#e63946}
+  .sc-realista::before{background:#5b8dee}.sc-oti::before{background:#2ec27e}
+  .sc-y2024::before{background:#9b59b6}.sc-y2022::before{background:#7f8c8d}
+  .sc-name{font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .sc-real .sc-name{color:#f5a623}
+  .sc-rec-lbl{font-size:10px;color:var(--muted);margin-bottom:2px}
+  .sc-rec-val{font-size:17px;font-weight:800;margin-bottom:8px}
+  .sc-divider{border:none;border-top:1px solid var(--border);margin:6px 0}
+  .sc-row{display:flex;justify-content:space-between;margin-bottom:3px}
+  .sc-lbl{font-size:10px;color:var(--muted)}
+  .sc-v{font-size:11px;font-weight:700}
+  .sc-desp{color:#e63946}.sc-res{color:#2ec27e}
+  .sc-margem{text-align:center;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;margin-top:6px}
+  .sc-pos{background:#0d2a1a;color:#2ec27e}.sc-neg{background:#2a0d0d;color:#e63946}
+  .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px}
+  .section-title{font-size:13px;font-weight:700;color:#f5a623;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .charts-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:18px}
+  .chart-wrap{position:relative;height:280px}
+  .pl-wrap{overflow-x:auto}
+  .pl-table{width:100%;border-collapse:collapse;font-size:12px;min-width:880px}
+  .pl-table th{background:var(--surface2);padding:8px 14px;text-align:right;font-size:10px;font-weight:700;
+    letter-spacing:.6px;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--border);white-space:nowrap}
+  .pl-table th.c-lbl{text-align:left;min-width:180px}
+  .pl-table td{padding:8px 14px;text-align:right;border-bottom:1px solid #1a1f2a;white-space:nowrap}
+  .pl-table td.c-lbl{text-align:left;font-weight:600;color:var(--text)}
+  .pl-table td.c-pct{color:var(--muted);font-size:11px}
+  .pl-table tr:hover td{background:var(--surface2)}
+  .tr-sec td{background:var(--surface2)!important;font-weight:800;font-size:13px;border-top:2px solid var(--border)}
+  .tr-sec td.c-lbl{color:#f5a623}
+  .tr-desp td.c-lbl{color:#e63946}
+  .tr-res td{background:#0d2a1a!important;font-weight:800;font-size:14px;border-top:2px solid #2ec27e}
+  .tr-res td.c-lbl{color:#2ec27e}
+  .tr-item td.c-lbl{padding-left:28px!important;font-weight:400;color:var(--muted)}
+  .info-card{background:#0d1a2e;border:1px solid #5b8dee44;border-radius:12px;padding:24px;margin-bottom:20px}
+  .info-card h3{color:#5b8dee;margin:0 0 10px;font-size:16px}
+  .info-card p{margin:4px 0;font-size:13px;color:var(--muted);line-height:1.7}
+  .info-card code{background:var(--surface2);padding:2px 8px;border-radius:4px;font-family:monospace;font-size:11px;color:var(--text)}
+  .err-card{background:#2a0d0d;border:1px solid #e6394644;border-radius:12px;padding:24px;margin-bottom:20px}
+  .err-card h3{color:#e63946;margin:0 0 8px;font-size:16px}
+  .err-card p{margin:0;font-size:13px;color:var(--muted)}
+  @media(max-width:1200px){.scenarios{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:768px){
+    header,.content{padding-left:16px;padding-right:16px}
+    #status-bar{padding-left:16px;padding-right:16px}
+    .scenarios{grid-template-columns:1fr 1fr}
+    .charts-row{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div id="loading" style="position:fixed;inset:0;background:rgba(10,12,16,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:9999;font-size:14px;color:var(--muted)">
+  <div style="width:38px;height:38px;border:3px solid var(--border);border-top-color:#f5a623;border-radius:50%;animation:spin .8s linear infinite"></div>
+  <span>Carregando dados financeiros...</span>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</div>
+<header>
+  <div class="header-left">
+    <div class="logo-badge">Rock in Rio 2026</div>
+    <div>
+      <h1>&#x1F4B0; Resultado Financeiro</h1>
+      <p id="header-sub">Or&#xE7;amento &#xD7; cen&#xE1;rios &#x2014; via Google Sheets</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <a href="/" class="btn btn-back">&#x2190; Painel</a>
+    <form method="POST" action="/logout" style="margin:0">
+      <button class="btn btn-secondary" type="submit">Sair</button>
+    </form>
+  </div>
+</header>
+<div id="status-bar">
+  <span class="status-dot" id="status-dot"></span>
+  <span id="status-text">Conectando...</span>
+</div>
+<div class="content" id="content" style="display:none">
+  <div id="top-msg"></div>
+  <div id="scenarios-area"></div>
+  <div id="charts-area" class="charts-row"></div>
+  <div id="pl-area"></div>
+</div>
+<script>
+var chartBar = null, chartDonut = null;
+
+function fmtMoeda(n) {
+  if (!n) return '—';
+  return 'R$ ' + Math.round(n).toLocaleString('pt-BR');
+}
+function fmtShort(n) {
+  if (n == null) return '—';
+  var a = Math.abs(n);
+  if (a >= 1e6) return 'R$' + (n / 1e6).toFixed(1).replace('.', ',') + 'M';
+  if (a >= 1e3) return 'R$' + (n / 1e3).toFixed(0) + 'k';
+  return 'R$' + Math.round(n).toLocaleString('pt-BR');
+}
+function fmtPct(p) {
+  if (p == null) return '—';
+  return p.toFixed(1).replace('.', ',') + '%';
+}
+
+var SCENARIOS = [
+  { key: 'real',     kPct: 'realPct',     label: 'REAL',       cls: 'sc-real',     clr: '#f5a623' },
+  { key: 'pess',     kPct: 'pessPct',     label: 'PESSIMISTA', cls: 'sc-pess',     clr: '#e63946' },
+  { key: 'realista', kPct: 'realistaPct', label: 'REALISTA',   cls: 'sc-realista', clr: '#5b8dee' },
+  { key: 'oti',      kPct: 'otiPct',      label: 'OTIMISTA',   cls: 'sc-oti',      clr: '#2ec27e' },
+  { key: 'y2024',    kPct: 'y2024Pct',    label: '2024',       cls: 'sc-y2024',    clr: '#9b59b6' },
+  { key: 'y2022',    kPct: 'y2022Pct',    label: '2022',       cls: 'sc-y2022',    clr: '#7f8c8d' }
+];
+
+function gv(obj, key) { return (obj && obj[key] != null) ? obj[key] : 0; }
+function gp(obj, pKey) { return obj ? obj[pKey] : null; }
+
+function renderScenarios(d) {
+  var html = '<div class="scenarios">';
+  for (var i = 0; i < SCENARIOS.length; i++) {
+    var sc = SCENARIOS[i];
+    var rec  = gv(d.receita,   sc.key);
+    var desp = gv(d.despesas,  sc.key);
+    var res  = gv(d.resultado, sc.key);
+    var marg = rec > 0 ? (res / rec * 100) : null;
+    html += '<div class="sc-card ' + sc.cls + '">';
+    html += '<div class="sc-name">' + sc.label + '</div>';
+    html += '<div class="sc-rec-lbl">Receita</div>';
+    html += '<div class="sc-rec-val">' + fmtShort(rec) + '</div>';
+    html += '<hr class="sc-divider">';
+    html += '<div class="sc-row"><span class="sc-lbl">Despesas</span><span class="sc-v sc-desp">' + fmtShort(desp) + '</span></div>';
+    html += '<div class="sc-row"><span class="sc-lbl">Resultado</span><span class="sc-v sc-res">' + fmtShort(res) + '</span></div>';
+    if (marg != null) {
+      html += '<div class="sc-margem ' + (marg >= 0 ? 'sc-pos' : 'sc-neg') + '">' +
+              'Margem ' + marg.toFixed(1).replace('.', ',') + '%</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  document.getElementById('scenarios-area').innerHTML = html;
+}
+
+function renderCharts(d) {
+  var cArea = document.getElementById('charts-area');
+  cArea.innerHTML =
+    '<div class="section" style="grid-column:1 / 2">' +
+    '<div class="section-title">&#x1F4CA; Receita &#xD7; Despesas &#xD7; Resultado por Cen&#xE1;rio</div>' +
+    '<div class="chart-wrap"><canvas id="chartBar"></canvas></div></div>' +
+    '<div class="section" style="grid-column:2 / 3">' +
+    '<div class="section-title">&#x1F967; Composi&#xE7;&#xE3;o da Receita (REAL)</div>' +
+    '<div class="chart-wrap"><canvas id="chartDonut"></canvas></div></div>';
+
+  var labels  = SCENARIOS.map(function(s) { return s.label; });
+  var recArr  = SCENARIOS.map(function(s) { return gv(d.receita,   s.key); });
+  var despArr = SCENARIOS.map(function(s) { return gv(d.despesas,  s.key); });
+  var resArr  = SCENARIOS.map(function(s) { return gv(d.resultado, s.key); });
+
+  if (chartBar) chartBar.destroy();
+  chartBar = new Chart(document.getElementById('chartBar').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Receita',   data: recArr,  backgroundColor: '#f5a62355', borderColor: '#f5a623', borderWidth: 1 },
+        { label: 'Despesas',  data: despArr, backgroundColor: '#e6394655', borderColor: '#e63946', borderWidth: 1 },
+        { label: 'Resultado', data: resArr,  backgroundColor: '#2ec27e55', borderColor: '#2ec27e', borderWidth: 1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#b0b8cc', boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: '#b0b8cc' }, grid: { color: '#1e2535' } },
+        y: {
+          ticks: {
+            color: '#b0b8cc',
+            callback: function(v) { return 'R$' + (v / 1e6).toFixed(0) + 'M'; }
+          },
+          grid: { color: '#1e2535' }
+        }
+      }
+    }
+  });
+
+  // Donut: breakdown of REAL receita components
+  var donutItems = [
+    { lbl: 'Passagens', key: 'passagens', clr: '#f5a623' },
+    { lbl: 'Midia',     key: 'midia',     clr: '#5b8dee' },
+    { lbl: 'C&B',       key: 'cb',        clr: '#2ec27e' }
+  ];
+  var donutData = [], donutLabels = [], donutColors = [];
+  for (var k = 0; k < donutItems.length; k++) {
+    var v = gv(d[donutItems[k].key], 'real');
+    if (v > 0) { donutData.push(v); donutLabels.push(donutItems[k].lbl); donutColors.push(donutItems[k].clr); }
+  }
+  if (chartDonut) chartDonut.destroy();
+  chartDonut = new Chart(document.getElementById('chartDonut').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: donutLabels,
+      datasets: [{ data: donutData, backgroundColor: donutColors, borderColor: '#0a0c10', borderWidth: 2 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#b0b8cc', boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: function(ctx) { return ' ' + fmtShort(ctx.raw); } } }
+      }
+    }
+  });
+}
+
+function renderPL(d) {
+  var thCols = '';
+  for (var i = 0; i < SCENARIOS.length; i++) {
+    thCols += '<th>' + SCENARIOS[i].label + '</th><th>%</th>';
+  }
+
+  function plRow(label, obj, trCls) {
+    if (!obj) return '';
+    var tds = '';
+    for (var j = 0; j < SCENARIOS.length; j++) {
+      var sc = SCENARIOS[j];
+      var v  = gv(obj, sc.key);
+      var p  = gp(obj, sc.kPct);
+      tds += '<td>' + (v ? fmtMoeda(v) : '—') + '</td><td class="c-pct">' + fmtPct(p) + '</td>';
+    }
+    return '<tr class="' + trCls + '"><td class="c-lbl">' + label + '</td>' + tds + '</tr>';
+  }
+
+  var tbody =
+    plRow('RECEITA',              d.receita,     'tr-sec') +
+    plRow('Passagens',            d.passagens,   'tr-item') +
+    plRow('(-) Repasse Oper.',    d.repasse,     'tr-item') +
+    plRow('M&#xED;dia',           d.midia,       'tr-item') +
+    plRow('C&amp;B',              d.cb,          'tr-item') +
+    plRow('DESPESAS',             d.despesas,    'tr-sec tr-desp') +
+    plRow('Rock in Rio',          d.rockInRio,   'tr-item') +
+    plRow('Opera&#xE7;&#xE3;o',  d.operacao,    'tr-item') +
+    plRow('Publicidade',          d.publicidade, 'tr-item') +
+    plRow('Produ&#xE7;&#xE3;o',  d.producao,    'tr-item') +
+    plRow('SAC',                  d.sac,         'tr-item') +
+    plRow('SdV',                  d.sdv,         'tr-item') +
+    plRow('Pulseiras',            d.pulseiras,   'tr-item') +
+    plRow('Imposto',              d.imposto,     'tr-item') +
+    plRow('RESULTADO PC',         d.resultado,   'tr-res');
+
+  document.getElementById('pl-area').innerHTML =
+    '<div class="section"><div class="section-title">&#x1F4CB; Demonstrativo Financeiro &#x2014; Or&#xE7;amento por Cen&#xE1;rio</div>' +
+    '<div class="pl-wrap"><table class="pl-table"><thead><tr><th class="c-lbl">Item</th>' + thCols + '</tr></thead>' +
+    '<tbody>' + tbody + '</tbody></table></div></div>';
+}
+
+function setStatus(ok, txt) {
+  document.getElementById('status-dot').style.background = ok ? '#2ec27e' : '#e63946';
+  document.getElementById('status-text').textContent = txt;
+}
+
+function loadData() {
+  fetch('/api/financeiro')
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      if (!j.ok || !j.data) {
+        var isNoCreds = (j.error || '').indexOf('GOOGLE_CREDENTIALS') >= 0 ||
+                        (j.error || '').indexOf('nao configurado') >= 0;
+        var msg = isNoCreds
+          ? '<div class="info-card"><h3>&#x2699;&#xFE0F; Configura&#xE7;&#xE3;o necess&#xE1;ria</h3>' +
+            '<p>Para conectar a planilha Google Sheets, adicione estas vari&#xE1;veis no Railway:</p>' +
+            '<p style="margin-top:10px">1. <code>GOOGLE_CREDENTIALS</code> &#x2014; conte&#xFA;do JSON completo da conta de servi&#xE7;o</p>' +
+            '<p>2. <code>GOOGLE_SHEETS_ID</code> &#x2014; j&#xE1; configurado por padr&#xE3;o como <code>19jTRYhW-8bclv3wSuAzGgmt07ouDw82C</code></p>' +
+            '<p style="margin-top:10px;color:#7f8c8d">V&#xE9; as instru&#xE7;&#xF5;es completas de configura&#xE7;&#xE3;o compartilhadas.</p>' +
+            '</div>'
+          : '<div class="err-card"><h3>&#x274C; Erro ao carregar</h3><p>' + (j.error || 'Falha na conex&#xE3;o com Google Sheets') + '</p></div>';
+        document.getElementById('top-msg').innerHTML = msg;
+        setStatus(false, 'Dados indisponíveis');
+        return;
+      }
+      var d = j.data;
+      var ts = j.updatedAt ? new Date(j.updatedAt).toLocaleString('pt-BR') : '—';
+      setStatus(true, 'Google Sheets · ' + ts);
+      document.getElementById('header-sub').textContent = 'Orçamento × cenários · ' + ts;
+      renderScenarios(d);
+      renderCharts(d);
+      renderPL(d);
+    })
+    .catch(function(e) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      document.getElementById('top-msg').innerHTML =
+        '<div class="err-card"><h3>&#x274C; Erro de rede</h3><p>' + e.message + '</p></div>';
+      setStatus(false, 'Erro de rede');
+    });
+}
+
 document.addEventListener('DOMContentLoaded', loadData);
 <\/script>
 </body></html>`;
