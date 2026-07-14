@@ -81,6 +81,7 @@ function aggregateCrowderData(movements, catalogShows = []) {
   const genderMap = {}, ageMap = {}, bankGenderMap = {};
   const freeGiftList = [];  // capture FREE/GIFT transactions in full
   const rateCategoryMap = {}; // unique rate.category.name values
+  const cortesiaSamples = []; // primeiros 3 registros de cortesia (sem PII) para inspecao
 
   for (const m of tickets) {
     const show   = m.tickets && m.tickets[0] ? m.tickets[0].show   : null;
@@ -193,33 +194,57 @@ function aggregateCrowderData(movements, catalogShows = []) {
         const purch = m.purchase || {};
         const channel = purch.channel || {};
         const geo = purch.geoInfo || {};
+        // Valor de desconto: tenta varias fields da API Crowder ate achar valor > 0
+        const valorDesconto =
+          m.rate?.price            ||
+          m.rate?.listPrice        ||
+          m.rate?.unitPrice        ||
+          m.rate?.faceValue        ||
+          m.rate?.originalPrice    ||
+          m.rate?.basePrice        ||
+          m.faceValue              ||
+          m.listPrice              ||
+          m.unitPrice              ||
+          m.originalAmount         ||
+          m.baseAmount             ||
+          0;
         freeGiftList.push({
-          tipo:          rateCat || payType,
-          data_compra:   (m.date || '').substring(0, 10),
-          hora_compra:   (m.date || '').substring(11, 16),
-          id_compra:     purch.id || m.id || '',
-          produto:       m.product?.name || '',
-          show:          (show ? show.name : ''),
-          data_show:     (show ? (show.startDate || '').substring(0, 10) : ''),
-          evento:        m.event?.name || '',
-          qtd_ingressos: m.ticketCount || 0,
-          valor_face:    m.amount || 0,
-          rate_name:     m.rate?.name || '',
-          rate_category: rateCat,
-          pay_type:      payType,
-          voucher:       pay.voucher || '',
-          canal:         channel.name || '',
-          canal_tipo:    channel.type || '',
-          nome:          `${buyer.firstName || purch.user?.firstName || ''} ${buyer.lastName || purch.user?.lastName || ''}`.trim(),
-          email:         buyer.email || purch.user?.email || '',
-          genero:        buyer.gender || '',
-          idade:         buyer.age || '',
-          cidade:        geo.city || '',
-          estado:        geo.region || '',
-          pais:          geo.country || '',
-          device:        purch.deviceInfo?.deviceType || '',
-          os:            purch.deviceInfo?.os || ''
+          tipo:           rateCat || payType,
+          data_compra:    (m.date || '').substring(0, 10),
+          hora_compra:    (m.date || '').substring(11, 16),
+          id_compra:      purch.id || m.id || '',
+          produto:        m.product?.name || '',
+          show:           (show ? show.name : ''),
+          data_show:      (show ? (show.startDate || '').substring(0, 10) : ''),
+          evento:         m.event?.name || '',
+          qtd_ingressos:  m.ticketCount || 0,
+          valor_face:     m.amount || 0,
+          valor_desconto: valorDesconto,
+          rate_name:      m.rate?.name || '',
+          rate_category:  rateCat,
+          pay_type:       payType,
+          voucher:        pay.voucher || '',
+          canal:          channel.name || '',
+          canal_tipo:     channel.type || '',
+          nome:           `${buyer.firstName || purch.user?.firstName || ''} ${buyer.lastName || purch.user?.lastName || ''}`.trim(),
+          email:          buyer.email || purch.user?.email || '',
+          genero:         buyer.gender || '',
+          idade:          buyer.age || '',
+          cidade:         geo.city || '',
+          estado:         geo.region || '',
+          pais:           geo.country || '',
+          device:         purch.deviceInfo?.deviceType || '',
+          os:             purch.deviceInfo?.os || ''
         });
+        // Salva amostra sem PII para diagnostico (max 3)
+        if (cortesiaSamples.length < 3) {
+          cortesiaSamples.push({
+            amount: m.amount, ticketCount: m.ticketCount,
+            rate: m.rate,
+            faceValue: m.faceValue, listPrice: m.listPrice, unitPrice: m.unitPrice,
+            originalAmount: m.originalAmount, baseAmount: m.baseAmount
+          });
+        }
       }
       if (bank)    bankMap[bank]   = (bankMap[bank]   || 0) + 1;
       if (brand)   brandMap[brand] = (brandMap[brand] || 0) + 1;
@@ -346,7 +371,8 @@ function aggregateCrowderData(movements, catalogShows = []) {
     totalReserved: 0, totalReservedRevenue: 0,
     paymentStats: { payTypeMap, bankMap, brandMap, installMap, cardTypeMap, genderMap, ageMap, bankGenderMap },
     freeGiftList,
-    rateCategoryMap
+    rateCategoryMap,
+    cortesiaSamples
   };
 }
 
@@ -713,7 +739,13 @@ app.get('/api/gratuidades', requireAuth, (req, res) => {
   res.json({ list: state.data.freeGiftList || [], updatedAt: state.lastRefresh });
 });
 
-// -- API: cortesia-club export (CSV download) -
+/// -- API: debug campos de preco cortesia (sem PII) --
+app.get('/api/debug/cortesia-rate', requireAuth, (req, res) => {
+  if (!state.data) return res.json({ loading: true });
+  res.json({ samples: state.data.cortesiaSamples || [] });
+});
+
+/ -- API: cortesia-club export (CSV download) -
 app.get('/api/cortesia-club/csv', requireAuth, (req, res) => {
   if (!state.data) return res.status(503).send('Data not loaded');
   const list = (state.data.freeGiftList || []).filter(r =>
@@ -3314,12 +3346,12 @@ function exportCortesiaClub() {
       const list = (json.list || []).filter(r => r.rate_category === 'Cortesia Club' || r.rate_category === 'Cortesia');
       if(!list.length) { alert('Nenhum registro de Cortesia Club encontrado.'); return; }
       // Build worksheet data
-      const cols = ['tipo','data_compra','hora_compra','id_compra','produto','show','data_show','evento','qtd_ingressos','valor_face','rate_name','rate_category','voucher','canal','canal_tipo','nome','email','genero','idade','cidade','estado','pais','device','os'];
-      const hdrs = ['Tipo','Data Compra','Hora','ID Compra','Produto','Show','Data Show','Evento','Qtd','Valor Face','Rate Name','Rate Category','Voucher','Canal','Canal Tipo','Nome','E-mail','G&#xEA;nero','Idade','Cidade','Estado','Pa&#xED;s','Device','OS'];
+      const cols = ['tipo','data_compra','hora_compra','id_compra','produto','show','data_show','evento','qtd_ingressos','valor_face','valor_desconto','rate_name','rate_category','voucher','canal','canal_tipo','nome','email','genero','idade','cidade','estado','pais','device','os'];
+      const hdrs = ['Tipo','Data Compra','Hora','ID Compra','Produto','Show','Data Show','Evento','Qtd','Valor Face','Valor Desconto','Rate Name','Rate Category','Voucher','Canal','Canal Tipo','Nome','E-mail','G&#xEA;nero','Idade','Cidade','Estado','Pa&#xED;s','Device','OS'];
       const wsData = [hdrs, ...list.map(r => cols.map(c => r[c] != null ? r[c] : ''))];
       const ws = XLSX.utils.aoa_to_sheet(wsData);
-      // Column widths
-      ws['!cols'] = [{wch:14},{wch:12},{wch:6},{wch:14},{wch:28},{wch:28},{wch:12},{wch:24},{wch:5},{wch:10},{wch:20},{wch:14},{wch:16},{wch:20},{wch:12},{wch:30},{wch:30},{wch:8},{wch:6},{wch:16},{wch:8},{wch:8},{wch:10},{wch:10}];
+      // Column widths (added {wch:14} for Valor Desconto after Valor Face)
+      ws['!cols'] = [{wch:14},{wch:12},{wch:6},{wch:14},{wch:28},{wch:28},{wch:12},{wch:24},{wch:5},{wch:10},{wch:14},{wch:20},{wch:14},{wch:16},{wch:20},{wch:12},{wch:30},{wch:30},{wch:8},{wch:6},{wch:16},{wch:8},{wch:8},{wch:10},{wch:10}];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Cortesia Club');
       const dt = new Date().toISOString().slice(0,10);
