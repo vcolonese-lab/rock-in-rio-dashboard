@@ -83,6 +83,24 @@ function aggregateCrowderData(movements, catalogShows = []) {
   const rateCategoryMap = {}; // unique rate.category.name values
   const cortesiaSamples = []; // primeiros 3 registros de cortesia (sem PII) para inspecao
 
+  // -- Primeiro passo: mapeia preco unitario de cada produto a partir dos registros PAGOS --
+  // (cortesias tem amount=0; busca o preco nos registros normais do mesmo produto)
+  const productPriceMap = {}; // prodKey -> preco unitario (maior valor visto)
+  for (const m of tickets) {
+    if ((m.amount || 0) <= 0 || (m.ticketCount || 0) <= 0) continue;
+    const rateCat_ = m.rate?.category?.name || '';
+    if (rateCat_ === 'Cortesia Club' || rateCat_ === 'Cortesia') continue;
+    const payType_ = m.payment?.type || m.purchase?.payment?.type || '';
+    if (payType_ === 'FREE' || payType_ === 'GIFT') continue;
+    const prodKey = m.product?.id ? String(m.product.id) : (m.product?.name || '');
+    if (!prodKey) continue;
+    const unitPrice = m.amount / m.ticketCount;
+    // Guarda o maior preco unitario visto para este produto
+    if (!productPriceMap[prodKey] || unitPrice > productPriceMap[prodKey]) {
+      productPriceMap[prodKey] = unitPrice;
+    }
+  }
+
   for (const m of tickets) {
     const show   = m.tickets && m.tickets[0] ? m.tickets[0].show   : null;
     const sector = m.tickets && m.tickets[0] ? m.tickets[0].sector : null;
@@ -194,20 +212,27 @@ function aggregateCrowderData(movements, catalogShows = []) {
         const purch = m.purchase || {};
         const channel = purch.channel || {};
         const geo = purch.geoInfo || {};
-        // Valor de desconto: tenta varias fields da API Crowder ate achar valor > 0
-        const valorDesconto =
-          m.rate?.price            ||
-          m.rate?.listPrice        ||
-          m.rate?.unitPrice        ||
-          m.rate?.faceValue        ||
-          m.rate?.originalPrice    ||
-          m.rate?.basePrice        ||
-          m.faceValue              ||
-          m.listPrice              ||
-          m.unitPrice              ||
-          m.originalAmount         ||
-          m.baseAmount             ||
+        // Valor de desconto: preco que seria cobrado se nao fosse cortesia
+        // Busca nos registros PAGOS do mesmo produto (productPriceMap, primeiro passo)
+        // Fallback: campos da API Crowder caso o produto nao tenha registro pago
+        const prodKey_ = m.product?.id ? String(m.product.id) : (m.product?.name || '');
+        const unitPriceFromMap = productPriceMap[prodKey_] || 0;
+        const valorDescontoAPI =
+          m.rate?.price         ||
+          m.rate?.listPrice     ||
+          m.rate?.unitPrice     ||
+          m.rate?.faceValue     ||
+          m.rate?.originalPrice ||
+          m.rate?.basePrice     ||
+          m.faceValue           ||
+          m.listPrice           ||
+          m.unitPrice           ||
+          m.originalAmount      ||
+          m.baseAmount          ||
           0;
+        // Usa o mapa de produtos pagos (mais confiavel); cai no campo da API se nao encontrar
+        const unitPrice_ = unitPriceFromMap || valorDescontoAPI;
+        const valorDesconto = unitPrice_ * (m.ticketCount || 0);
         freeGiftList.push({
           tipo:           rateCat || payType,
           data_compra:    (m.date || '').substring(0, 10),
