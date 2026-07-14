@@ -121,37 +121,47 @@ function parseFinancialRows(rows) {
 
   const toNum = v => {
     if (v == null || String(v).trim() === '' || String(v).trim() === '-') return 0;
-    return parseFloat(String(v).replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, '')) || 0;
+    const s = String(v).replace(/\s/g, '').replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, '');
+    return parseFloat(s) || 0;
   };
   const toPct = v => {
     if (v == null || String(v).trim() === '' || String(v).trim() === '-') return null;
     return parseFloat(String(v).replace('%', '').replace(',', '.').trim()) || null;
   };
 
-  // Detect column layout from header row (contains REAL and PESSIMISTA)
-  let C = { real: 1, rp: 2, pess: 3, pp: 4, realista: 5, rp2: 6, oti: 7, op: 8, y24: 9, p24: 10, y22: 11, p22: 12 };
-  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+  // Labels are in column 1 (column A is blank in this spreadsheet)
+  const LABEL_COL = 1;
+
+  // Find the financial header row (has REAL + % + PESSIMISTA)
+  // This is DIFFERENT from the volume header (which has no % columns)
+  let financialStartIdx = 0;
+  let C = { real: 2, rp: 3, pess: 4, pp: 5, realista: 6, rp2: 7, oti: 8, op: 9, y24: 11, p24: 12, y22: 13, p22: 14 };
+
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
     const row = rows[i];
     const joined = row.join('|').toUpperCase();
-    if (joined.includes('REAL') && joined.includes('PESSIMISTA')) {
-      let rIdx = -1;
+    // The financial header row contains BOTH 'PESSIMISTA' AND '%' columns
+    if (joined.includes('REAL') && joined.includes('PESSIMISTA') && joined.includes('%')) {
+      financialStartIdx = i + 1; // only search rows after this header
+      // Detect each column position explicitly (handles the gap before 2024)
+      let rIdx = -1, pessIdx = -1, realistaIdx = -1, otiIdx = -1, y24Idx = -1, y22Idx = -1;
       for (let j = 0; j < row.length; j++) {
-        if (String(row[j]).toUpperCase().trim() === 'REAL') { rIdx = j; break; }
-      }
-      if (rIdx < 0) {
-        for (let j = 0; j < row.length; j++) {
-          const v = String(row[j]).toUpperCase();
-          if (v.includes('REAL') && !v.includes('REALISTA') && !v.includes('RESULTADO')) { rIdx = j; break; }
-        }
+        const v = String(row[j]).toUpperCase().trim();
+        if (v === 'REAL' && rIdx < 0) rIdx = j;
+        else if (v === 'PESSIMISTA') pessIdx = j;
+        else if (v === 'REALISTA')   realistaIdx = j;
+        else if (v === 'OTIMISTA')   otiIdx = j;
+        else if (v === '2024')       y24Idx = j;
+        else if (v === '2022')       y22Idx = j;
       }
       if (rIdx >= 0) {
         C = {
-          real: rIdx,       rp: rIdx + 1,
-          pess: rIdx + 2,   pp: rIdx + 3,
-          realista: rIdx + 4, rp2: rIdx + 5,
-          oti: rIdx + 6,    op: rIdx + 7,
-          y24: rIdx + 8,    p24: rIdx + 9,
-          y22: rIdx + 10,   p22: rIdx + 11
+          real:     rIdx,                                              rp:  rIdx + 1,
+          pess:     pessIdx     >= 0 ? pessIdx     : rIdx + 2,        pp:  (pessIdx     >= 0 ? pessIdx     : rIdx + 2) + 1,
+          realista: realistaIdx >= 0 ? realistaIdx : rIdx + 4,        rp2: (realistaIdx >= 0 ? realistaIdx : rIdx + 4) + 1,
+          oti:      otiIdx      >= 0 ? otiIdx      : rIdx + 6,        op:  (otiIdx      >= 0 ? otiIdx      : rIdx + 6) + 1,
+          y24:      y24Idx      >= 0 ? y24Idx      : rIdx + 9,        p24: (y24Idx      >= 0 ? y24Idx      : rIdx + 9) + 1,
+          y22:      y22Idx      >= 0 ? y22Idx      : rIdx + 11,       p22: (y22Idx      >= 0 ? y22Idx      : rIdx + 11) + 1
         };
       }
       break;
@@ -170,31 +180,32 @@ function parseFinancialRows(rows) {
     };
   };
 
+  // Search only in the financial section (after the header row)
   const findRow = (...labels) => {
     const norms = labels.map(norm);
-    for (const row of rows) {
-      const n = norm(row[0] || '');
-      if (norms.some(nl => n === nl || (nl.length > 4 && n.startsWith(nl)))) return row;
+    for (let i = financialStartIdx; i < rows.length; i++) {
+      const n = norm(rows[i][LABEL_COL] || '');
+      if (norms.some(nl => n === nl || (nl.length > 4 && n.startsWith(nl)))) return rows[i];
     }
     return null;
   };
 
   return {
-    receita:     ex(findRow('Receita', 'Receitas', 'Total Receita')),
-    passagens:   ex(findRow('Passagens', 'Venda Passagens', 'Passagem')),
+    receita:     ex(findRow('Receita', 'Receitas')),
+    passagens:   ex(findRow('Passagens')),
     repasse:     ex(findRow('(-) Repasse', 'Repasse Oper', 'Repasse')),
-    midia:       ex(findRow('Mídia', 'Midia', 'M&B', 'Media')),
-    cb:          ex(findRow('C&B', 'Comida e Bebida', 'C & B', 'Alimentacao')),
-    despesas:    ex(findRow('Despesas', 'Total Despesas', 'Despesas Totais')),
-    rockInRio:   ex(findRow('Rock in Rio', 'Rock In Rio', 'RiR Fee')),
-    operacao:    ex(findRow('Operação', 'Operacao', 'Operações')),
-    publicidade: ex(findRow('Publicidade', 'Marketing', 'Propaganda')),
+    midia:       ex(findRow('Midia', 'Mídia', 'Media')),
+    cb:          ex(findRow('Comida e Bebida', 'C&B', 'C & B')),
+    despesas:    ex(findRow('Despesas', 'Total Despesas')),
+    rockInRio:   ex(findRow('Rock in Rio', 'Rock In Rio')),
+    operacao:    ex(findRow('Operação', 'Operacao')),
+    publicidade: ex(findRow('Publicidade', 'Marketing')),
     producao:    ex(findRow('Produção', 'Producao')),
-    sac:         ex(findRow('SAC', 'Atendimento ao Cliente', 'Atendimento')),
+    sac:         ex(findRow('SAC', 'Atendimento')),
     sdv:         ex(findRow('SdV', 'Sistema de Vendas', 'SDV')),
     pulseiras:   ex(findRow('Pulseiras', 'Pulseira')),
-    imposto:     ex(findRow('Imposto', 'Impostos', 'Tributos', 'ISS')),
-    resultado:   ex(findRow('Resultado PC', 'Resultado Bruto', 'Resultado Final', 'Lucro'))
+    imposto:     ex(findRow('Imposto', 'Impostos', 'Tributos')),
+    resultado:   ex(findRow('Resultado PC', 'Resultado'))
   };
 }
 
