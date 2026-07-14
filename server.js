@@ -3009,6 +3009,7 @@ function getPagamentoHTML(username) {
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pagamento &#xD7; Perfil &#x2014; Rock in Rio 2026</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 ${SHARED_CSS_VARS}
 ${SHARED_HEADER_CSS}
@@ -3293,21 +3294,25 @@ async function loadData(){
   }
 }
 function exportCortesiaClub() {
+  if(typeof XLSX === 'undefined') { alert('SheetJS ainda carregando, tente em breve.'); return; }
   const btn = document.getElementById('btn-export-cortesia');
-  if(btn) { btn.disabled = true; btn.textContent = '&#x23F3; Baixando...'; }
-  fetch('/api/cortesia-club/csv')
-    .then(r => {
-      if(!r.ok) throw new Error('Erro '+r.status);
-      return r.blob();
-    })
-    .then(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'cortesia_club.csv';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  if(btn) { btn.disabled = true; btn.textContent = '&#x23F3; Gerando XLS...'; }
+  fetch('/api/gratuidades')
+    .then(r => { if(!r.ok) throw new Error('Erro '+r.status); return r.json(); })
+    .then(json => {
+      const list = (json.list || []).filter(r => r.rate_category === 'Cortesia Club' || r.rate_category === 'Cortesia');
+      if(!list.length) { alert('Nenhum registro de Cortesia Club encontrado.'); return; }
+      // Build worksheet data
+      const cols = ['tipo','data_compra','hora_compra','id_compra','produto','show','data_show','evento','qtd_ingressos','valor_face','rate_name','rate_category','voucher','canal','canal_tipo','nome','email','genero','idade','cidade','estado','pais','device','os'];
+      const hdrs = ['Tipo','Data Compra','Hora','ID Compra','Produto','Show','Data Show','Evento','Qtd','Valor Face','Rate Name','Rate Category','Voucher','Canal','Canal Tipo','Nome','E-mail','G&#xEA;nero','Idade','Cidade','Estado','Pa&#xED;s','Device','OS'];
+      const wsData = [hdrs, ...list.map(r => cols.map(c => r[c] != null ? r[c] : ''))];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      // Column widths
+      ws['!cols'] = [{wch:14},{wch:12},{wch:6},{wch:14},{wch:28},{wch:28},{wch:12},{wch:24},{wch:5},{wch:10},{wch:20},{wch:14},{wch:16},{wch:20},{wch:12},{wch:30},{wch:30},{wch:8},{wch:6},{wch:16},{wch:8},{wch:8},{wch:10},{wch:10}];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Cortesia Club');
+      const dt = new Date().toISOString().slice(0,10);
+      XLSX.writeFile(wb, 'cortesia_club_' + dt + '.xlsx');
     })
     .catch(err => alert('Erro ao exportar: ' + err.message))
     .finally(() => {
