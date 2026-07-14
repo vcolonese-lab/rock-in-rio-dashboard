@@ -80,6 +80,7 @@ function aggregateCrowderData(movements, catalogShows = []) {
   const payTypeMap = {}, bankMap = {}, brandMap = {}, installMap = {}, cardTypeMap = {};
   const genderMap = {}, ageMap = {}, bankGenderMap = {};
   const freeGiftList = [];  // capture FREE/GIFT transactions in full
+  const rateCategoryMap = {}; // unique rate.category.name values
 
   for (const m of tickets) {
     const show   = m.tickets && m.tickets[0] ? m.tickets[0].show   : null;
@@ -103,6 +104,12 @@ function aggregateCrowderData(movements, catalogShows = []) {
         cancelled: 0, cancelledRevenue: 0
       };
     }
+
+    // Rate category tracking (for Club/Cortesia detection)
+    const rateCatName = m.rate?.category?.name || '';
+    const rateNameFull = m.rate?.name || '';
+    const rateCatKey = rateCatName ? `${rateCatName} | ${rateNameFull}` : '';
+    if (rateCatKey) rateCategoryMap[rateCatKey] = (rateCategoryMap[rateCatKey] || 0) + 1;
 
     const entry = showMap[key];
     entry.tks      += m.ticketCount || 0;
@@ -317,7 +324,8 @@ function aggregateCrowderData(movements, catalogShows = []) {
     totalCancelled, totalCancelledRevenue,
     totalReserved: 0, totalReservedRevenue: 0,
     paymentStats: { payTypeMap, bankMap, brandMap, installMap, cardTypeMap, genderMap, ageMap, bankGenderMap },
-    freeGiftList
+    freeGiftList,
+    rateCategoryMap
   };
 }
 
@@ -497,7 +505,8 @@ app.get('/health', (req, res) => {
     error: state.error,
     totalSold: state.data?.totalSold ?? null,
     totalRevenue: state.data?.totalRevenue ?? null,
-    showCount: state.data?.rawShows?.length ?? null
+    showCount: state.data?.rawShows?.length ?? null,
+    rateCategoryMap: state.data?.rateCategoryMap ?? null
   });
 });
 
