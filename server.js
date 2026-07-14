@@ -745,7 +745,7 @@ app.get('/api/debug/cortesia-rate', requireAuth, (req, res) => {
   res.json({ samples: state.data.cortesiaSamples || [] });
 });
 
-/ -- API: cortesia-club export (CSV download) -
+// -- API: cortesia-club export (CSV download) --
 app.get('/api/cortesia-club/csv', requireAuth, (req, res) => {
   if (!state.data) return res.status(503).send('Data not loaded');
   const list = (state.data.freeGiftList || []).filter(r =>
