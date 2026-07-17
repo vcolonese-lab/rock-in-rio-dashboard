@@ -2251,10 +2251,11 @@ function render(rawShows) {
     const localEmbarque = getLocalEmbarque(s);
     const key = \`\${localEmbarque}|\${s.date}|\${s.time}\`;
     if (aceitosSet.has(key) || negadosSet.has(key)) return false;
-    // Auto-exclude: if a sibling slot (same local+date, different time) has spare capacity,
-    // passengers already have an alternative — no action needed
+    // Auto-exclude: if a sibling slot (same local+date, different time) is active (tks > 0)
+    // and still has spare capacity, passengers already have a real alternative — no action needed.
+    // Slots with tks === 0 are ignored (phantom/pre-scheduled, not yet open for sale).
     const siblings = neighborMap[\`\${localEmbarque}|\${s.date}\`] || [];
-    return !siblings.some(n => n.time !== s.time && n.tks < CAP);
+    return !siblings.some(n => n.time !== s.time && n.tks > 0 && n.tks < CAP);
   });
 
   // Sort: localEmbarque (A&#x2192;Z) &#x2192; date &#x2192; time
