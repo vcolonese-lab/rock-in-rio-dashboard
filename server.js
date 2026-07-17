@@ -711,6 +711,17 @@ function requireAuth(req, res, next) {
   res.redirect('/login');
 }
 
+// -- Auth middleware for automated/service calls (e.g. scheduled monitors) --
+// Accepts an active session OR a service API key, so background jobs don't
+// break when the browser session expires (8h) without requiring a password.
+function requireAuthOrApiKey(req, res, next) {
+  if (req.session.user) return next();
+  const key = req.query.adminKey || req.headers['x-admin-key'];
+  const expected = process.env.SERVICE_API_KEY || process.env.ADMIN_SECRET || 'rir-admin-2026';
+  if (key && key === expected) return next();
+  res.redirect('/login');
+}
+
 // -- Public: list loaded usernames (no passwords exposed) ----
 app.get('/health/users', (req, res) => {
   res.json({ users: Object.keys(USERS), count: Object.keys(USERS).length });
@@ -872,7 +883,7 @@ app.post('/logout', (req, res) => {
 });
 
 // -- API: data endpoint -----------------------
-app.get('/api/data', requireAuth, (req, res) => {
+app.get('/api/data', requireAuthOrApiKey, (req, res) => {
   res.json({
     data:        state.data,
     lastRefresh: state.lastRefresh,
