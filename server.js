@@ -1863,21 +1863,25 @@ function render(rawShows) {
   }
 
   // Global summary
-  const totalShows = rawShows.filter(s=>s.tks>0).length;
-  const totalSold  = rawShows.reduce((s,r)=>s+(r.tks||0),0);
-  const alertCount = rawShows.filter(s=>{
+  const activeShows = rawShows.filter(s=>s.tks>0);
+  const totalShows  = activeShows.length;
+  const totalSold   = rawShows.reduce((s,r)=>s+(r.tks||0),0);
+  const alertCount  = rawShows.filter(s=>{
     const level = alertLevel(s.tks, getCapacity(s));
-    return level==='critical'||level==='warning';
+    return level==='critical';
   }).length;
-  const totalCap = totalShows * DEFAULT_CAP;
+  const totalCap    = activeShows.reduce((sum,s)=>sum+getCapacity(s),0);
+  const occupancyPct = totalCap > 0 ? (totalSold / totalCap * 100).toFixed(1) : '0.0';
 
   let html = \`
   <div class="summary-bar">
-    <div class="summary-item"><div class="summary-label">Total de Produtos</div><div class="summary-value">\${fmt(totalShows)}</div></div>
+    <div class="summary-item"><div class="summary-label">Total de Hor&#xE1;rios</div><div class="summary-value">\${fmt(totalShows)}</div></div>
     <div class="summary-sep"></div>
     <div class="summary-item"><div class="summary-label">Ingressos Vendidos</div><div class="summary-value" style="color:var(--green)">\${fmt(totalSold)}</div></div>
     <div class="summary-sep"></div>
-    <div class="summary-item"><div class="summary-label">Alertas de Ocupa&#xE7;&#xE3;o</div><div class="summary-value" style="color:\${alertCount>0?'var(--accent)':'var(--muted)'}">\${alertCount}</div></div>
+    <div class="summary-item"><div class="summary-label">Ocupa&#xE7;&#xE3;o Total</div><div class="summary-value" style="color:var(--green)">\${occupancyPct}%</div></div>
+    <div class="summary-sep"></div>
+    <div class="summary-item"><div class="summary-label">Hor&#xE1;rios Lotados</div><div class="summary-value" style="color:\${alertCount>0?'var(--accent)':'var(--muted)'}">\${alertCount}</div></div>
   </div>
   <div class="legend">
     <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>&#x2265; 90% &#x2014; Lota&#xE7;&#xE3;o cr&#xED;tica</div>
