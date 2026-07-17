@@ -2244,11 +2244,17 @@ function render(rawShows) {
   const aceitosSet = new Set(getAceitos().map(a => \`\${a.local}|\${a.date}|\${a.horarioOriginal}\`));
   const negadosSet = new Set(getNegados().map(n => \`\${n.local}|\${n.date}|\${n.horarioOriginal}\`));
 
-  // Find sold-out slots: tks >= CAP, excluding accepted or denied
+  // Find sold-out slots: tks >= CAP, excluding accepted, denied,
+  // OR any slot where another time on the same local+date still has spare capacity
   const lotados = rawShows.filter(s => {
     if ((s.tks || 0) < CAP || !s.date || !s.time) return false;
-    const key = \`\${getLocalEmbarque(s)}|\${s.date}|\${s.time}\`;
-    return !aceitosSet.has(key) && !negadosSet.has(key);
+    const localEmbarque = getLocalEmbarque(s);
+    const key = \`\${localEmbarque}|\${s.date}|\${s.time}\`;
+    if (aceitosSet.has(key) || negadosSet.has(key)) return false;
+    // Auto-exclude: if a sibling slot (same local+date, different time) has spare capacity,
+    // passengers already have an alternative — no action needed
+    const siblings = neighborMap[\`\${localEmbarque}|\${s.date}\`] || [];
+    return !siblings.some(n => n.time !== s.time && n.tks < CAP);
   });
 
   // Sort: localEmbarque (A&#x2192;Z) &#x2192; date &#x2192; time
@@ -2284,7 +2290,7 @@ function render(rawShows) {
 
   // Sold-out table
   html += \`<div class="section-title">&#x1F6A8; Hor&#xE1;rios Esgotados</div>
-  <div class="section-sub">Eventos com \${CAP} de \${CAP} ingressos vendidos &#x2014; capacidade m&#xE1;xima atingida</div>
+  <div class="section-sub">Hor&#xE1;rios esgotados sem outra op&#xE7;&#xE3;o dispon&#xED;vel no mesmo local e data &#x2014; os que t&#xEA;m vagas em outro hor&#xE1;rio s&#xE3;o exclu&#xED;dos automaticamente</div>
   <div style="overflow-x:auto">
   <table class="lotados-table">
     <thead><tr>
