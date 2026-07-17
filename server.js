@@ -3583,6 +3583,50 @@ app.get('/api/financeiro', requireAuth, async (req, res) => {
 });
 
 // -- API: debug financeiro raw rows --------
+app.get('/api/debug/lotados', requireAuth, (req, res) => {
+  const state = getState();
+  const rawShows = (state.data && state.data.rawShows) || [];
+  const CAP = 46;
+
+  // Build neighborMap (same as render())
+  const neighborMap = {};
+  for (const s of rawShows) {
+    if (!s.date || !s.time) continue;
+    const le = getLocalEmbarque(s);
+    const nk = `${le}|${s.date}`;
+    if (!neighborMap[nk]) neighborMap[nk] = [];
+    neighborMap[nk].push({ time: s.time, tks: s.tks || 0 });
+  }
+  for (const k in neighborMap) neighborMap[k].sort((a,b) => a.time.localeCompare(b.time));
+
+  // All sold-out before any filter
+  const soldOut = rawShows.filter(s => (s.tks || 0) >= CAP && s.date && s.time);
+
+  const result = soldOut.slice(0, 30).map(s => {
+    const le = getLocalEmbarque(s);
+    const siblings = (neighborMap[`${le}|${s.date}`] || []).filter(n => n.time !== s.time);
+    const activeSibsWithSpace = siblings.filter(n => n.tks > 0 && n.tks < CAP);
+    const allSibsWithSpace = siblings.filter(n => n.tks < CAP);
+    return {
+      local: le, date: s.date, time: s.time, tks: s.tks,
+      siblings: siblings,
+      activeSibsWithSpace: activeSibsWithSpace.length,
+      allSibsWithSpace: allSibsWithSpace.length,
+      wouldBeExcluded: activeSibsWithSpace.length > 0
+    };
+  });
+
+  res.json({
+    totalSoldOut: soldOut.length,
+    excludedBySiblingFilter: soldOut.filter(s => {
+      const le = getLocalEmbarque(s);
+      const siblings = (neighborMap[`${le}|${s.date}`] || []).filter(n => n.time !== s.time);
+      return siblings.some(n => n.tks > 0 && n.tks < CAP);
+    }).length,
+    sample: result
+  });
+});
+
 app.get('/api/debug/financeiro-raw', requireAuth, async (req, res) => {
   try {
     const result = await fetchSheetRows();
