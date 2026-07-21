@@ -797,6 +797,37 @@ function getLocalEmbarqueFromMovement(m) {
   return '';
 }
 
+// -- Helper: normalize a local name for fuzzy matching --
+// Strips accents, lowercases, collapses spaces.
+// "Itajuba" matches "Itajubá"; "Teresópolis" matches "Rodoviária de Teresópolis" via alias, etc.
+function normLocal(s) {
+  return String(s || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+// Aliases: normalized Pontos-sheet name -> normalized Crowder name, for cases where
+// the strings are genuinely different (not just accents/spaces).
+const LOCAL_NAME_ALIASES = {
+  'barra da tijuca praia': 'barra da tijuca - rio de janeiro', // Primeira Classe
+  'shopping eldorado':     'shopping eldorado - sao paulo',    // 1001
+  'teresopolis':           'rodoviaria de teresopolis',        // Teresópolis operador
+};
+
+// Returns true if crowderName matches any name in normAllowedArr:
+//   1. Exact normalized match (covers accent diffs like Itajuba/Itajubá, space diffs)
+//   2. Explicit alias map (covers genuinely different names)
+function matchesAllowedPoints(crowderName, normAllowedArr) {
+  const n = normLocal(crowderName);
+  if (!n) return false;
+  for (const p of normAllowedArr) {
+    if (n === p) return true;
+    const alias = LOCAL_NAME_ALIASES[p];
+    if (alias && n === alias) return true;
+  }
+  return false;
+}
+
 // -- Public: list loaded usernames (no passwords exposed) ----
 app.get('/health/users', (req, res) => {
   res.json({ users: Object.keys(USERS), count: Object.keys(USERS).length });
@@ -980,8 +1011,10 @@ app.get('/api/data', requireAuthOrApiKey, async (req, res) => {
       return res.json({ data: EMPTY, lastRefresh: state.lastRefresh, refreshing: state.refreshing,
         error: operatorsCache.err || 'Operador sem pontos configurados' });
     }
+    // Build normalized array for fuzzy matching (accent-insensitive + alias map)
+    const normAllowedArr = [...allowedPoints].map(normLocal);
     const filteredMovements = (state.rawMovements || []).filter(
-      m => allowedPoints.has(getLocalEmbarqueFromMovement(m))
+      m => matchesAllowedPoints(getLocalEmbarqueFromMovement(m), normAllowedArr)
     );
     const filteredCatalog = (state.catalogShows || []).filter(c => {
       const PREFIX_EMBAR = 'EMBARQUE: ';
@@ -993,7 +1026,7 @@ app.get('/api/data', requireAuthOrApiKey, async (req, res) => {
       if (sec.startsWith(PREFIX_EMBAR))    local = sec.replace(PREFIX_EMBAR, '').trim();
       else if (prod.startsWith(PREFIX_EMBAR)) local = prod.replace(PREFIX_EMBAR, '').trim();
       else if (ev.startsWith(PREFIX_EVENT))   local = ev.replace(PREFIX_EVENT, '').trim();
-      return allowedPoints.has(local);
+      return matchesAllowedPoints(local, normAllowedArr);
     });
     return res.json({
       data:        aggregateCrowderData(filteredMovements, filteredCatalog),
