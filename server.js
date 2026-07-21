@@ -24,6 +24,18 @@ const USERS = Object.fromEntries(
     .filter(Boolean)
 );
 
+// Operator users (restricted to their own boarding points): "op1:senha1,op2:senha2"
+// The username here must match exactly the "Operador" column in the Pontos sheet.
+const OPERATOR_USERS = Object.fromEntries(
+  (process.env.OPERATOR_USERS || '')
+    .split(',')
+    .filter(s => s.trim().includes(':'))
+    .map(pair => {
+      const idx = pair.trim().indexOf(':');
+      return [pair.trim().substring(0, idx), pair.trim().substring(idx + 1)];
+    })
+);
+
 // ---------------------------------------------
 // CROWDER API CONFIG
 // ---------------------------------------------
@@ -50,6 +62,8 @@ const EVENT_NAME_FILTER = process.env.EVENT_NAME_FILTER || 'Rock in Rio';
 // ---------------------------------------------
 let state = {
   data: null,           // Aggregated dashboard data
+  rawMovements: [],     // Raw movements — kept for per-operator filtering
+  catalogShows: [],     // Show catalog — kept for per-operator allShows
   lastRefresh: null,    // Date of last successful data fetch
   refreshing: false,
   error: null
@@ -107,6 +121,44 @@ async function fetchSheetRows() {
     return { rows: d.values || [], error: null };
   } catch (e) {
     return { error: e.message, rows: null };
+  }
+}
+
+// -- OPERATORS MAP (Pontos sheet, col A = ponto, col M = Operador) --
+let operatorsCache = { map: null, err: null, lastFetch: null };
+const OPERATORS_CACHE_TTL = 10 * 60 * 1000;
+
+async function getOperatorsMap() {
+  const now = Date.now();
+  if (operatorsCache.map && operatorsCache.lastFetch && (now - operatorsCache.lastFetch < OPERATORS_CACHE_TTL)) {
+    return operatorsCache.map;
+  }
+  const token = await getGoogleAccessToken();
+  if (!token) { operatorsCache.err = 'Sem credenciais Google'; return null; }
+  const sid = process.env.GOOGLE_SHEETS_ID || '19jTRYhW-8bclv3wSuAzGgmt07ouDw82C';
+  try {
+    const range = encodeURIComponent('Pontos!A:M');
+    const r = await fetch(
+      'https://sheets.googleapis.com/v4/spreadsheets/' + sid + '/values/' + range,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const d = await r.json();
+    if (d.error) { operatorsCache.err = d.error.message; return null; }
+    const rows = d.values || [];
+    const map = {}; // { operadorName: Set<pontoName> }
+    for (let i = 1; i < rows.length; i++) { // skip header row
+      const row = rows[i];
+      const ponto    = (row[0]  || '').trim(); // col A — nome do ponto
+      const operador = (row[12] || '').trim(); // col M — nome do operador
+      if (!ponto || !operador) continue;
+      if (!map[operador]) map[operador] = new Set();
+      map[operador].add(ponto);
+    }
+    operatorsCache = { map, err: null, lastFetch: now };
+    return map;
+  } catch (e) {
+    operatorsCache.err = e.message;
+    return null;
   }
 }
 
@@ -674,8 +726,10 @@ async function refreshData() {
       }
     }
 
-    state.data        = aggregateCrowderData(allMovements, catalogShows);
-    state.lastRefresh = new Date();
+    state.rawMovements = allMovements;
+    state.catalogShows = catalogShows;
+    state.data         = aggregateCrowderData(allMovements, catalogShows);
+    state.lastRefresh  = new Date();
     console.log(`[${new Date().toISOString()}] Pronto. Total vendido: ${state.data.totalSold}`);
 
   } catch (err) {
@@ -720,6 +774,27 @@ function requireAuthOrApiKey(req, res, next) {
   const expected = process.env.SERVICE_API_KEY || process.env.ADMIN_SECRET || 'rir-admin-2026';
   if (key && key === expected) return next();
   res.redirect('/login');
+}
+
+// -- Admin-only middleware (operators are excluded) ----------
+function requireAdmin(req, res, next) {
+  // Sessions created before this change have no role field — treat as admin (backward compat)
+  if (req.session.user && (req.session.role === 'admin' || !req.session.role)) return next();
+  if (req.session.user) return res.redirect('/'); // operator or unknown role → home
+  res.redirect('/login');
+}
+
+// -- Helper: extract boarding point name from a raw movement --
+function getLocalEmbarqueFromMovement(m) {
+  const PREFIX_EMBAR = 'EMBARQUE: ';
+  const PREFIX_EVENT = 'Primeira Classe Rock in Rio - ';
+  const sector  = (m.tickets && m.tickets[0] && m.tickets[0].sector && m.tickets[0].sector.name) || '';
+  const product = (m.product && m.product.name) || '';
+  const event   = (m.event   && m.event.name)   || '';
+  if (sector.startsWith(PREFIX_EMBAR))   return sector.replace(PREFIX_EMBAR, '').trim();
+  if (product.startsWith(PREFIX_EMBAR))  return product.replace(PREFIX_EMBAR, '').trim();
+  if (event.startsWith(PREFIX_EVENT))    return event.replace(PREFIX_EVENT, '').trim();
+  return '';
 }
 
 // -- Public: list loaded usernames (no passwords exposed) ----
@@ -872,6 +947,12 @@ app.post('/login', (req, res) => {
   const { username, password } = req.body;
   if (USERS[username] && USERS[username] === password) {
     req.session.user = username;
+    req.session.role = 'admin';
+    return res.redirect('/');
+  }
+  if (OPERATOR_USERS[username] && OPERATOR_USERS[username] === password) {
+    req.session.user = username;
+    req.session.role = 'operator';
     return res.redirect('/');
   }
   res.redirect('/login?error=1');
@@ -883,7 +964,44 @@ app.post('/logout', (req, res) => {
 });
 
 // -- API: data endpoint -----------------------
-app.get('/api/data', requireAuthOrApiKey, (req, res) => {
+app.get('/api/data', requireAuthOrApiKey, async (req, res) => {
+  // Operators only see data for their assigned boarding points
+  if (req.session.role === 'operator') {
+    const operatorsMap  = await getOperatorsMap();
+    const allowedPoints = (operatorsMap && operatorsMap[req.session.user]) || new Set();
+    const EMPTY = {
+      rawShows: [], allShows: [], events: [], byDate: [], byTime: [], salesByDate: [],
+      totalSold: 0, totalRevenue: 0, totalCancelled: 0, totalCancelledRevenue: 0,
+      totalReserved: 0, totalReservedRevenue: 0,
+      paymentStats: { payTypeMap:{}, bankMap:{}, brandMap:{}, installMap:{}, cardTypeMap:{}, genderMap:{}, ageMap:{}, bankGenderMap:{} },
+      freeGiftList: [], rateCategoryMap: {}, cortesiaSamples: []
+    };
+    if (allowedPoints.size === 0) {
+      return res.json({ data: EMPTY, lastRefresh: state.lastRefresh, refreshing: state.refreshing,
+        error: operatorsCache.err || 'Operador sem pontos configurados' });
+    }
+    const filteredMovements = (state.rawMovements || []).filter(
+      m => allowedPoints.has(getLocalEmbarqueFromMovement(m))
+    );
+    const filteredCatalog = (state.catalogShows || []).filter(c => {
+      const PREFIX_EMBAR = 'EMBARQUE: ';
+      const PREFIX_EVENT = 'Primeira Classe Rock in Rio - ';
+      const sec  = (c.sector  && c.sector.name)  || c.sectorName  || '';
+      const prod = (c.product && c.product.name) || c.productName || '';
+      const ev   = (c.event   && c.event.name)   || c.eventName   || '';
+      let local = '';
+      if (sec.startsWith(PREFIX_EMBAR))    local = sec.replace(PREFIX_EMBAR, '').trim();
+      else if (prod.startsWith(PREFIX_EMBAR)) local = prod.replace(PREFIX_EMBAR, '').trim();
+      else if (ev.startsWith(PREFIX_EVENT))   local = ev.replace(PREFIX_EVENT, '').trim();
+      return allowedPoints.has(local);
+    });
+    return res.json({
+      data:        aggregateCrowderData(filteredMovements, filteredCatalog),
+      lastRefresh: state.lastRefresh,
+      refreshing:  state.refreshing,
+      error:       state.error
+    });
+  }
   res.json({
     data:        state.data,
     lastRefresh: state.lastRefresh,
@@ -892,7 +1010,7 @@ app.get('/api/data', requireAuthOrApiKey, (req, res) => {
   });
 });
 
-app.post('/api/refresh', requireAuth, async (req, res) => {
+app.post('/api/refresh', requireAdmin, async (req, res) => {
   if (state.refreshing) return res.json({ ok: false, message: 'J&#xE1; est&#xE1; atualizando...' });
   refreshData(); // fire and don't wait
   res.json({ ok: true, message: 'Atualiza&#xE7;&#xE3;o iniciada...' });
@@ -924,8 +1042,14 @@ app.post('/admin/update-api-key', (req, res) => {
 });
 
 // -- Dashboard (main page) --------------------
-app.get('/', requireAuth, (req, res) => {
-  res.send(getDashboardHTML(req.session.user));
+app.get('/', requireAuth, async (req, res) => {
+  const role = req.session.role || 'admin';
+  let operatorPoints = null;
+  if (role === 'operator') {
+    const map = await getOperatorsMap();
+    operatorPoints = (map && map[req.session.user]) ? [...map[req.session.user]].sort() : [];
+  }
+  res.send(getDashboardHTML(req.session.user, role, operatorPoints));
 });
 
 /// -- API: gratuidades/cortesia export --------
@@ -1144,7 +1268,7 @@ const SHARED_HEADER_CSS = `
 // ---------------------------------------------
 // DASHBOARD HTML
 // ---------------------------------------------
-function getDashboardHTML(username) {
+function getDashboardHTML(username, role = 'admin', operatorPoints = null) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -1292,6 +1416,17 @@ ${SHARED_HEADER_CSS}
   <span id="status-text">Conectando...</span>
 </div>
 
+${role === 'operator' ? `
+<div style="background:var(--surface2);border:1px solid #f5a62344;border-radius:10px;padding:12px 20px;margin:16px 32px 4px;display:flex;align-items:center;gap:12px">
+  <span style="font-size:20px">&#x1F4CD;</span>
+  <div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#f5a623;margin-bottom:2px">Modo Operador</div>
+    <div style="font-size:12px;color:var(--muted)">${operatorPoints && operatorPoints.length > 0
+      ? 'Exibindo apenas: ' + operatorPoints.join(', ')
+      : 'Exibindo apenas seus pontos de embarque'}</div>
+  </div>
+</div>` : ''}
+
 <!-- NAV CARDS -->
 <div class="nav-cards">
   <a href="/eventos" class="nav-card">
@@ -1314,11 +1449,11 @@ ${SHARED_HEADER_CSS}
     <div><div class="nav-card-title">Velocidade de Vendas</div><div class="nav-card-desc">Ritmo di&#xE1;rio, tend&#xEA;ncia e proje&#xE7;&#xE3;o at&#xE9; o festival</div></div>
     <div class="nav-card-arrow">&#x203A;</div>
   </a>
-  <a href="/financeiro" class="nav-card" style="border-color:#f5a62344">
+  ${role === 'admin' ? `<a href="/financeiro" class="nav-card" style="border-color:#f5a62344">
     <div class="nav-card-icon">&#x1F4B0;</div>
     <div><div class="nav-card-title">Resultado Financeiro</div><div class="nav-card-desc">Or&#xE7;amento, cen&#xE1;rios e margem por proje&#xE7;&#xE3;o</div></div>
     <div class="nav-card-arrow">&#x203A;</div>
-  </a>
+  </a>` : ''}
 </div>
 
 <!-- MODAL COMPARATIVO HIST&#xD3;RICO -->
@@ -3589,7 +3724,7 @@ document.addEventListener('DOMContentLoaded', loadData);
 }
 
 // -- API: financeiro data ------------------
-app.get('/api/financeiro', requireAuth, async (req, res) => {
+app.get('/api/financeiro', requireAdmin, async (req, res) => {
   const now = Date.now();
   if (financialCache.data && financialCache.lastFetch && (now - financialCache.lastFetch) < FINANCIAL_CACHE_TTL) {
     return res.json({ ok: true, cached: true, data: financialCache.data, updatedAt: new Date(financialCache.lastFetch).toISOString() });
@@ -3652,7 +3787,7 @@ app.get('/api/debug/lotados', requireAuth, (req, res) => {
   });
 });
 
-app.get('/api/debug/financeiro-raw', requireAuth, async (req, res) => {
+app.get('/api/debug/financeiro-raw', requireAdmin, async (req, res) => {
   try {
     const result = await fetchSheetRows();
     res.json(result);
@@ -3662,7 +3797,7 @@ app.get('/api/debug/financeiro-raw', requireAuth, async (req, res) => {
 });
 
 // -- Sub-page: Financeiro ------------------
-app.get('/financeiro', requireAuth, (req, res) => {
+app.get('/financeiro', requireAdmin, (req, res) => {
   res.send(getFinanceiroHTML(req.session.user));
 });
 
