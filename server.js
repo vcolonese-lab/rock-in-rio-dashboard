@@ -148,7 +148,7 @@ async function getOperatorsMap() {
     const map = {}; // { operadorName: Set<pontoName> }
     for (let i = 1; i < rows.length; i++) { // skip header row
       const row = rows[i];
-      const ponto    = (row[0]  || '').trim(); // col A — nome do ponto
+      const ponto    = (row[1]  || '').trim(); // col B — nome do ponto (col A é vazia)
       const operador = (row[12] || '').trim(); // col M — nome do operador
       if (!ponto || !operador) continue;
       if (!map[operador]) map[operador] = new Set();
